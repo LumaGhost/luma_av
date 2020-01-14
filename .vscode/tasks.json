@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "cmake .. -DCMAKE_BUILD_TYPE=Release && make",
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            },
+            "problemMatcher": []
+        }
+        ,
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "./test_project",
+            "options": {
+                "cwd": "${workspaceRoot}/build/bin"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

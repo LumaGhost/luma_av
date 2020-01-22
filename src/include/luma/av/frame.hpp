@@ -5,12 +5,19 @@
 *  allow people to access the sweet power of ffmpeg without dealing with
 *  the immense mental overhead and boilerplate that comes with manual
 *  memory management and manual error handling
+*  ideally flexibility and customization isnt sacrificed comapred to ffmpeg
+*    and the api is easy to integrate with existing ffmpeg code
+*    by supporting conversions/access to the underlying c structures
 * next steps/todo:
 *  trello and project board
 *  design for buffer invariant, considering using a std allocator interface
 *    do descrive the users choice in how the buffers should be allocated
 *  more research/experiments into avframe memory api and the users
 *   responsibilites for memory management. unsafe/safe secnarios etc.
+*   better undestranding of avframe ref/unref. is unref the only
+*   function you need to clear to properly clear the buffers?
+*   ffmpeg documentaiton mentions "refernce counted" frames
+*   as in some frames arent ref counted so i just want to make sure 
 *  error handling desing: error codes? result? exceptions?
 *  inital first draft and tests for frame design 
 *  deside on align customization point
@@ -23,10 +30,28 @@ how to deal with apis like av_recieve_frame without exposing AVFrame*?
   exposing avframe forces the user to know exactly how the ffmpeg api
   theyre passing the frame to affects the invariant
   not exposing avframe forces us to expose pretty much all ffmpeg functionality
+  update: i think we allow for avframe* access but discourage it
+    by providing enough functionality to where most users dont need it
+    and i think it should be considered advanced functionality
+    so its okay to expect the user to know how the
+    underlying api modifies the frame and deal with any consequences
+    from invariant violation
 maybe a copyable policy. just a function object that returns true
     if copies are allowed. just write the copy constructor
     then add static_assert(copy_policy{}());
     or static_assert(copy_policy::value)
+general utility for wrapping void pointer customization points into something
+    more type safe and experessive?
+holly shit av buffer padding size? https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e025894b1fc307a
+    the part about how mjpeg can segfault in a specific case
+can i get a better move constructor by just swapping the frame ptrs?
+    thats a reasonable cost for a move. maybe still unref the old buffer
+    now its noexcept and maybe you dont need policies. just take the approach
+    in codec and have detail result free functions that wrapp ffmpeg
+    then use exceptions in the constructor and provide free functions
+    that return a result of the regular type so the user can 
+    opt into error handling
+    actually i think i need a call to avframe alloc no matter what
 */
 
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
@@ -322,6 +347,20 @@ class basic_frame {
         assert(idx > 0 && idx < num_planes());
         //  i think the avimage or avpicture api is used for that
         return frame_->linesize[idx];
+    }
+
+    // maybe this can be a codec context member function?
+    // friend here seems kindof lazy and scary
+    //  maybe i can just bite the bullet and allow for an avframe* member
+    //  it pretty much needs to be there anyway since otherwise 
+    //  the user cant integrate with any ffmpeg code that isnt wrapped here
+    // friend result<void> receive_frame(AVCodecContext *avctx, AVFrame *frame) {
+
+    // }
+
+    // yea its not so bad i guess if we discourage use and offer alternatives
+    AVFrame* avframe_ptr() noexcept {
+        return frame_.get();
     }
 
     // todo extended data?

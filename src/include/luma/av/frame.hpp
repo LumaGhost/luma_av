@@ -16,6 +16,19 @@
 *  deside on align customization point
 */
 
+/**
+thoughts and ideas
+
+how to deal with apis like av_recieve_frame without exposing AVFrame*?
+  exposing avframe forces the user to know exactly how the ffmpeg api
+  theyre passing the frame to affects the invariant
+  not exposing avframe forces us to expose pretty much all ffmpeg functionality
+maybe a copyable policy. just a function object that returns true
+    if copies are allowed. just write the copy constructor
+    then add static_assert(copy_policy{}());
+    or static_assert(copy_policy::value)
+*/
+
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
 
 extern "C" {
@@ -285,10 +298,20 @@ class basic_frame {
 
     }
 
+    //format needs to be correct per the invariant
+    //  otherwise this bounds check isnt actually safe
+    int num_planes() const {
+        auto result = int{av_pix_fmt_count_planes(frame_->format)};
+        // contrat that result is positive?
+        // maybe let the user deal with an error code if its negative?
+        return result;
+    }
+
     // todo not null?
     //  other types besides uint8_t that avframe supports?
     uint8_t* data(int idx) const {
         // contract that data plane index is in range
+        assert(idx > 0 && idx < num_planes());
         //  i think the avimage or avpicture api is used for that
         return frame_->data[idx];
     }
@@ -296,6 +319,7 @@ class basic_frame {
 
     int linesize(int idx) const {
         // contract that linesize is in range
+        assert(idx > 0 && idx < num_planes());
         //  i think the avimage or avpicture api is used for that
         return frame_->linesize[idx];
     }

@@ -17,6 +17,15 @@ more convenient/expresive/type safe accessors for the codec members
 codec context wrapper an decode/encode api. honstly theres so many fucking fields tho
     i think i have an initial direction for the class, need to look more into constructor
     options and invariants
+solution for global registration functions like avcodec_register_all
+    my first thought is to do it for the user by default,
+    just call them during static initialization and you can have a build
+    option for the user to disable that if they want
+transcoder class for conveinence so the user doesnt have to 
+    deal with an encoder and decoder themselves. also i think you can save
+    some allocations if you know the user wants to transcode
+consistent library wide stance on how/if underlying "unsafe"
+    ffmpeg is accessed/exposed
 
 def need to put together a statement on error handling
     looking like a combination of result, exceptions (from constructors)
@@ -94,7 +103,16 @@ class codec {
     public:
     // is the null state any use here?
     //  think im going with the non null invariant on this one
-    //  since its just a non owning ptr
+    //  since its just a non owning ptr theres no after move state
+    //  and at that point a default state feels less important
+    // i think the null state just isnt useful
+    //  it would basically just be two step initialization
+    //  the codec functionality is basically just a global map
+    //  you either find one or you dont and i think the "not found"
+    //  state is better left for the free functions since we can
+    //  still express the not found state (and arguably more clearly)
+    //  and we also get to make this invariant stronger and
+    //  easier to work with
     // codec() noexcept = default;
 
     // automatically throws? use the free function to handle yourself
@@ -114,6 +132,12 @@ class codec {
     auto get() const noexcept -> const AVCodec* {
         return codec_;
     }
+
+    // no ownership so shalow/pointer copy is safe
+    // no need to move since there is no way to optimize
+    //  and no ownership transfer happening
+    codec(const codec&) = default;
+    codec& operator=(const codec&) = default;
 
     private:
         const AVCodec* codec_;
@@ -139,13 +163,158 @@ result<codec> find_decoder(const std::string_view name) {
     }
 }
 
+class codec_parameters {
+
+    private:
+    AVCodecParamerers* 
+};
+
 // class for actually decoding, prob have
 //  an invariant around keeping the codec open
+// https://ffmpeg.org/doxygen/3.2/group__lavc__core.html#gae80afec6f26df6607eaacf39b561c315
+//  "It is illegal to then call avcodec_open2() with a different codec."
+//  lets make this explicit
+// for the move and copy semantics, since the codec context is less
+//  complicated than the frame (the frame has extra invaraints because of the buffer and linesize)
+//  so maybe we can go for a null state here? that way we can have a cheap move
+//  that doesnt allocate
 class codec_context {
+
+    constexpr codec_context() noexcept = default;
+
+    constexpr codec_context(nullptr_t) : context_{nullptr} {}
+
+    codec_context& operator=(nullptr_t) {
+        context_ = nullptr_t;
+        return *this;
+    }
+
+    explicit operator bool() const noexcept {
+        return context_;
+    }
+
+    friend bool operator==(const codec_context& ctx, nullptr_t) noexcept {
+        return ctx.context_ == nullptr;
+    }
+    friend bool operator==(nullptr_t, const codec_context& ctx) noexcept {
+        return ctx.context_ == nullptr;
+    }
+    friend bool operator!=(const codec_context& ctx, nullptr_t) noexcept {
+        return ctx.context_ != nullptr;
+    }
+    friend bool operator!=(nullptr_t, const codec_context& ctx) noexcept {
+        return ctx.context_ != nullptr;
+    }
+
+    // other functionality that interacts with the null state
+    void reset(AVCodecContext* ctx = nullptr) noexcept {
+        context_.reset(ctx);
+    }
+    AVCodecContext* release() noexcept {
+        return context_.release();
+    }
+
+    // deref operator? i dont think any api uses AVCodecContext&
+    //  so there would be no need for operator()*
+    // operator-> could be considered i think since people definitely
+    //  want to access codec context params
+    //  feel like our own type safe accessors are prob a better approach
+    //  than just letting the user deref since its way less encapsulaton.
+    //  we have the get method but i think that will hopefully get branded
+    //  as the one "youre on your own" accecss point and its geared towards
+    //  advanced users. i feel like its harder to communicate that a deref
+    //  operator is only for advanced users. on that note we may want to
+    //  consider a name other than "get" if its only for advanced users
+    //  i liked the slightly verbose naming on the frame one. pros of naming
+    //  "get" is that we have a consistent interface that would allow us to
+    //   use crtp to plug in the null ptr semantics on each type
+    //   thats going to behave that way
+    //   a big factor for me is how complex the invariant is.
+    //   if there isnt much to mess up than a friendly "get"
+    //   and maybe even a deref is probably fine
+    //  i think the ideall is that the user doesnt really have
+    //  to deal with the AVCodecContext*, but if they do i think get is enough
+    //  i also dont like having operator-> without operator*
+
+    // do we want to support initializing from a null codec?
+    //  we already have our nullptr constructor used up
+    //  so to avoid being ambiguous i think this can just take a codec
+    // worst case the user can call avcodec alloc context on their own 
+    //  and use the context constructor
+    // explicit codec_context(const AVCodec*);
+    explicit codec_context(const codec& codec) 
+        : codec_{codec.get()}, context_{alloc_context(codec).value()} {
+
+    }
 
     // users that want to set tons of params can use the codec
     //  context api straight up
+    // will this constructor mess with the invariant?
+    //  i think it will. we need to keep the codec and context together
     explicit codec_context(const AVCodecContext*);
+
+    // what does ffmpeg mean by this function isnt thread safe?
+    // two threads cant call this function at the same time
+    //  even if its on completely different objects?
+    result<void> open(AVDictionary**  options) {
+        auto ec = avcodec_open2(get(), codec_, options);
+        return ec;
+    }
+
+    bool is_open() const noexcept {
+        // this is ffmpegs implementation
+        //  idk why this function isnt const
+        // https://ffmpeg.org/doxygen/3.2/group__lavc__misc.html#ga906dda732e79eac12067c6d7ea19b630
+        return !!context_->internal;
+    }
+
+    /*
+    warning:
+    "The input buffer, avpkt->data must be AV_INPUT_BUFFER_PADDING_SIZE 
+        larger than the actual read bytes because some optimized bitstream readers
+        read 32 or 64 bits at once and could read over the end.
+    "Do not mix this API with the legacy API (like avcodec_decode_video2())
+        on the same AVCodecContext. It will return unexpected results
+         now or in future libavcodec versions."
+    feel like our api should ideally avoid all of the warnings and pitfalls of ffmpeg
+        unless the user goes out of their way to access those
+    */
+    // think we can take the raw ptr here since its const
+    //  no safety penality but more felxibility?
+    //  well it could be null, in that case we say its on the user?
+    result<void> send_packet(const AVPacket* p) {
+        auto ec = avcodec_send_packet(get(), p);
+        return ec;
+    }
+
+    // convenience overload for our own packet
+    result<void> send_packet(const packet& p) {
+        return this->send_packet(p.avpacket_ptr()); // note packet design tbd
+    }
+
+    /*
+    " The encoder may create a reference to the frame data 
+        (or copy it if the frame is not reference-counted)"
+      more hints at what ref coutning means. i think we will want to make sure
+        that the luma frame is ref counted so we dont force the user
+        into a useless expensive copy here, or maybe the opposite.
+        i think the encoder may need to hold onto that buffer for a bit
+        because not every frame produces a packet, so yea we would
+        want to make sure luma frame isnt ref counted so that it maintains
+        its unique ownership even while its being encoded
+    */
+    // think the frame overloadsd can follow the same spirit as send_packet
+    // still need to decide if we want the encoder and decoder to be different types
+    // maybe the codec context memory management is one detail class
+    //  so that we dont repeat as much similar code when making decoder and encoder
+    //  as a separate class. I like the type safe distinction between encoder and decoder
+    //  since they have different capabilties and cant really be interchanged
+    result<void> send_frame(const AVFrame* f) {
+        auto ec = avcodec_send_frame(f);
+        return ec;
+    }
+
+
 
         /*
     This will be set to a reference-counted video or audio frame (depending on the decoder type)
@@ -175,8 +344,85 @@ class codec_context {
         return ec;
     }
 
+    // i guess the recieve functions should also have AVFrame/AVpacket overloads?
+    //  i guess but a non const ptr is less expressive imo but if the user
+    //  wants it i dont see it being harmful if we offer a safer alternative
+    //  it def has to be "Advanced usage" unlike the send functions and decode/encode
+    //  the user can actually mess this up if they modify the frame before making it writable
+    //  so theres def more risk
+    result<void> recieve_packet(packet& p) {
+        auto ec = avcodec_receive_packet(context_, p.avpacket_ptr()); // note packet design tbd
+        return ec;
+    }
+
+    // same packet overloads from send_packet would
+    //  be supported here
+    result<frame> decode(const AVPacket* p) {
+        LUMA_AV_OUTCOME_TRY(this->send_packet(p));
+        auto f = frame{};
+        LUMA_AV_OUTCOME_TRY(this->recieve_frame(f));
+        // the decoded frame f reference the frame buffers inside
+        //  of the decoder, we need to copy those out so f has ownership
+        LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
+        return f;
+    }
+
+    /*
+    https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga5b8eff59cf259747cf0b31563e38ded6
+    This will be set to a reference-counted packet allocated by the encoder. 
+        Note that the function will always call av_frame_unref(frame) before doing anything else.
+    i just realised "will be set" is a bit vauge. it could be taken to mean the reseat the ptr
+        but they dont take a ** so they couldnt, that would also leak memory. so i take it
+        to mean they unref and reseat just the buffers of the packet 
+    */
+    // same frame overloads from send_frame would
+    //  be supported here
+    // note: packet design tbd but planning to follow the frame
+    result<packet> encode(const AVFrame* f) {
+        LUMA_AV_OUTCOME_TRY(this->send_frame(p));
+        auto p = packet{};
+        LUMA_AV_OUTCOME_TRY(this->recieve_packet(p));
+        // the encoded packet p references the buffers inside
+        //  of the encoder, we need to copy those out so p has ownership
+        // packet version of make writable?
+        LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
+        return p;
+    }
+
+    // this isnt global (unlike the codec) 
+    //  so its okay for the user to modify it on a non const object
+    AVCodecContext* get() noexcept {
+        return context_.get();
+    }
+
+    const AVCodecContext* get() noexcept const {
+        return context_.get();
+    }
+
+
     private:
-    AVCodecContext* context_; 
+    struct codec_context_deleter {
+        void operator()(AVCodecContext* ctx) const noexcept {
+            avcodec_free_context(&ctx);
+        }
+    };
+    using context_ptr = std::unique_ptr<AVCodecContext, codec_context_deleter>;
+    // again i think the result error handling is more expressive than null error handling
+    //  and signficiantly more friendly to excepton users
+    // could make all of this public including the deleter possibly
+    // im not sure at the moment which is better
+    //  minimize scope/visibility by default, but dont hide useful functionality
+    friend result<context_ptr> alloc_context(const codec& codec) {
+        auto ctx = avcodec_alloc_context3(codec.get());
+        if (ctx) {
+            return context_ptr{ctx};
+        } else {
+            auto ec = int{}; // i think this is an alloc failure
+            return ec;
+        }
+    }
+    const AVCodec* codec_ = nullptr;
+    context_ptr context_ = nullptr; 
 };
 
 

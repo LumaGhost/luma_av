@@ -52,6 +52,15 @@ can i get a better move constructor by just swapping the frame ptrs?
     that return a result of the regular type so the user can 
     opt into error handling
     actually i think i need a call to avframe alloc no matter what
+    i just really really dont like how expensive the move is right now
+    maybe we should let the user opt into a fucked up move state that breaks the invariant?
+    so that they can get a cheap move if they want to? this move ctor is hard as fuck to design
+any easier ways for the user to check if the frame has buffers?
+    currently i think just if(frame.data(0)) will work 
+    but maybe something more expressive? esp since we're making
+    the whole buffer invariant about not just the data but linesize
+    and the buffer sentitive params and ownership too
+    we could maybe do bool conversion but idk if thats expressive
 */
 
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
@@ -71,6 +80,11 @@ namespace av {
 using error_code = int;
 template <class T>
 using result = std::variant<T, error_code>;
+
+// our own outcome try macro so we can let the user choose between
+//  standalone and boost outcome?
+#define LUMA_AV_OUTCOME_TRY(var, expr) BOOST_OUTCOME_TRY(var, expr)
+#define LUMA_AV_OUTCOME_TRY(expr) BOOST_OUTCOME_TRY(expr)
 
 // user gets to decide what happens when the frame fails to allocate
 //  default is just terminate
@@ -142,6 +156,26 @@ class basic_frame {
         std::is_nothrow_invocable_v<av_copy_props_failure_policy, AVFrame*>;
 
     frame() noexcept(noexcept_default) = default;
+
+    // does a deep copy of the frame, validates the invariant with a contract
+    // helpful for integrating with code that already uses avframe
+    explicit frame(const AVFrame*);
+    // move ref isntead of deep copy?
+    //  idk if this overload is surprising. one steals the buffer one doesnt
+    //  and theres  no std::move like signal
+    explicit frame(AVFrame*);
+
+    // constructors from buffer params
+    // thinking types with invariants for the buffer and auto params
+    // e.g. a frame params struct with width height and format
+    explicit frame(video_buffer_params);
+    explicit frame(audio_buffer_params);
+    // just a rogue idea at this point but maybe
+    //  a variant of video and audio buffer params
+    //  could be useful in some way to enforce
+    //  that its either an audio or video frame
+    //  when it comes to managing the parameters that affect the buffer
+
 
     // we can write them but i think implict copy is too expensive to be implicit
     frame(const frame&) = delete;
@@ -392,6 +426,23 @@ private:
 
 using frame = basic_frame<termiante_on_frame_alloc_failure,
                           termiante_on_av_copy_props_failure>;
+
+
+// unsure if these should be detail
+// on one hand the frame invariant should always be writable
+//  so only advanced users messing with the underlying AVFrame
+//  will need theses. at the same time advanced users
+//  will prob need these
+// should they take a ptr or the frame class?
+// the frame is more flexible but its not expressive that it cant be null
+result<void> is_writable(const frame& f) {
+    auto ec = av_frame_is_writable(f.avframe_ptr());
+    return ec;
+}
+result<void> make_writable(cosnt frame& f) {
+    auto ec = av_frame_make_writable(f.avframe_ptr());
+    return ec;
+}
 
 } // av
 } // luma

@@ -65,27 +65,19 @@ any easier ways for the user to check if the frame has buffers?
 
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
 
+#ifndef LUMA_AV_FRAME_HPP
+#define LUMA_AV_FRAME_HPP
+
 extern "C" {
 #include <libavutil/frame.h>
 }
 
 #include <memory>
-#include <variant>
+
+#include <luma/av/result.hpp>
 
 namespace luma {
 namespace av {
-
-// error code: more lightweight but harder to rethrow as an exception
-//  honestly though outcome seems really well design i doubt its much
-//  overhead compared to a regular error code
-using error_code = int;
-template <class T>
-using result = std::variant<T, error_code>;
-
-// our own outcome try macro so we can let the user choose between
-//  standalone and boost outcome?
-#define LUMA_AV_OUTCOME_TRY(var, expr) BOOST_OUTCOME_TRY(var, expr)
-#define LUMA_AV_OUTCOME_TRY(expr) BOOST_OUTCOME_TRY(expr)
 
 // user gets to decide what happens when the frame fails to allocate
 //  default is just terminate
@@ -100,21 +92,21 @@ struct termiante_on_frame_alloc_failure {
             std::terminate();
         }
     }
-}
+};
 
 struct throw_on_frame_alloc_failure {
     void operator()(const AVFrame* frame) {
         if (!frame) {
-            throw std::runtime_error{};
+            throw std::bad_alloc{};
         }
     }
-}
+};
 
 struct ignore_frame_alloc_failure {
     void operator()(const AVFrame* frame) noexcept {
         
     }
-}
+};
 
 // av copy props calls are necessary for the classes invariant in copy/move operations
 //  copy props can fail in places where theres no easy way to let the user decide
@@ -128,7 +120,7 @@ struct termiante_on_av_copy_props_failure {
             std::terminate();
         }
     }
-}
+};
 
 // priorities: as regular as possible (at least movable)
 //  stronger invariant compared to av frame
@@ -139,6 +131,7 @@ struct termiante_on_av_copy_props_failure {
 // alignment as a template parameter?
 template <class av_frame_alloc_failure_policy, class av_copy_props_failure_policy>
 class basic_frame {
+    public:
 
     // although its a bit more opinioninated i think?
     //  going to force noexcept default construction.
@@ -156,21 +149,21 @@ class basic_frame {
     static constexpr bool noexcept_copy_props_failure = 
         std::is_nothrow_invocable_v<av_copy_props_failure_policy, AVFrame*>;
 
-    frame() noexcept(noexcept_default) = default;
+    basic_frame() noexcept(noexcept_default) {}
 
     // does a deep copy of the frame, validates the invariant with a contract
     // helpful for integrating with code that already uses avframe
-    explicit frame(const AVFrame*);
+    explicit basic_frame(const AVFrame*);
     // move ref isntead of deep copy?
     //  idk if this overload is surprising. one steals the buffer one doesnt
     //  and theres  no std::move like signal
-    explicit frame(AVFrame*);
+    explicit basic_frame(AVFrame*);
 
     // constructors from buffer params
     // thinking types with invariants for the buffer and auto params
     // e.g. a frame params struct with width height and format
-    explicit frame(video_buffer_params);
-    explicit frame(audio_buffer_params);
+    // explicit basic_frame(video_buffer_params);
+    // explicit basic_frame(audio_buffer_params);
     // just a rogue idea at this point but maybe
     //  a variant of video and audio buffer params
     //  could be useful in some way to enforce
@@ -179,14 +172,14 @@ class basic_frame {
 
 
     // we can write them but i think implict copy is too expensive to be implicit
-    frame(const frame&) = delete;
-    frame& operator=(const frame&) = delete;
+    basic_frame(const basic_frame&) = delete;
+    basic_frame& operator=(const basic_frame&) = delete;
 
-    frame(frame&& other) noexcept(noexcept_default && noexcept_copy_props_failure) {
+    basic_frame(basic_frame&& other) noexcept(noexcept_default && noexcept_copy_props_failure) {
         av_copy_props_failure_policy{}(copy_props(other));
         av_frame_move_ref(frame_.get(), other.frame_.get());
     }
-    frame& operator=(frame&& other) noexcept(noexcept_copy_props_failure) {
+    basic_frame& operator=(basic_frame&& other) noexcept(noexcept_copy_props_failure) {
         av_copy_props_failure_policy{}(copy_props(other));
         // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html#ga709e62bc2917ffd84c5c0f4e1dfc48f7
         av_frame_unref(frame_.get());
@@ -232,7 +225,7 @@ class basic_frame {
         return av_frame_get_best_effort_timestamp(frame_.get());
     }
 
-    frame& best_effort_timestamp(int64_t val) const noexcept {
+    basic_frame& best_effort_timestamp(int64_t val) const noexcept {
         av_frame_set_best_effort_timestamp(frame_.get(), val);
         return *this;
     }
@@ -241,19 +234,19 @@ class basic_frame {
 
     // just getters for the width height and format (and audio buffer params)
     int width() const noexcept {
-        return frame->width;
+        return frame_->width;
     }
     int height() const noexcept {
-        return frame->height;
+        return frame_->height;
     }
     int nb_samples() const noexcept {
-        return frame->width;
+        return frame_->width;
     }
     int channel_layout() const noexcept {
-        return frame->height;
+        return frame_->height;
     }
     int format() const noexcept {
-        return frame->format;
+        return frame_->format;
     }
 
 
@@ -269,8 +262,8 @@ class basic_frame {
     //  idk why it just doesnt read right to me?
     //  this is the only way afaik to do it without exposing AVFrame* so
     //  its going to have to stay for now i think
-    result<void> copy_props(const frame& other) noexcept {
-        return av_frame_copy_props(frame_.get(), other.frame_.get());
+    result<void> copy_props(const basic_frame& other) noexcept {
+        return errc{av_frame_copy_props(frame_.get(), other.frame_.get())};
     }
     // in thinking shared ownership wont be allowed?
     // which means the make writable functions wont be necessary?
@@ -289,12 +282,11 @@ class basic_frame {
     //  i can see maybe someone wants to add their own concurrency on top
     //   and not have to deal with a second heap allocation from a shared prt?
     //  i guess i have to see the effort to support it before deciding
-    int ref(const frame& other) noexcept {
-        auto ec = this->copy_props_props(other);
-        if (ec) return ec;
+    result<void> ref(const basic_frame& other) noexcept {
+        LUMA_AV_OUTCOME_TRY(this->copy_props_props(other));
         // safe even if buffers are allocated and not reference counted?
         av_frame_unref(frame_.get());
-        return av_frame_ref(frame_.get(), other.frame_.get())
+        return errc{av_frame_ref(frame_.get(), other.frame_.get())};
     }
     
     // this api is questionable 
@@ -306,13 +298,11 @@ class basic_frame {
     // }
 
     // i think its prob better just to do a full copy
-    result<void> copy(const frame& other) {
-        auto ec = int{};
+    result<void> copy(const basic_frame& other) {
         // todo weird at all that this doesnt use the users policy?
         //  could make it more explicit that its just for the moves
         //  since theres no way to handle the error
-        ec = this->copy_props_props(other);
-        if (ec) return ec;
+        LUMA_AV_OUTCOME_TRY(this->copy_props_props(other));
         // todo align?
         // i think its based on the cpu so can it be known at compile time?
         //  but its only needed for buffers so maybe its misleading as a tp?
@@ -321,8 +311,8 @@ class basic_frame {
         //  to mix frames of different algnment so 
         const auto align = int{32};
         // todo ontract violation if buffer params arent set
-        ec = av_frame_get_buffer(frame_.get(), align);
-        return ec;
+        auto ec = av_frame_get_buffer(frame_.get(), align);
+        return errc{ec};
     }
 
     // prob not going to have a frame alloc wrapper?
@@ -343,7 +333,7 @@ class basic_frame {
         //   already allocated? 
         av_frame_unref(frame_.get());
         frame_->width = width;
-        frame_->height = heght;
+        frame_->height = height;
         frame_->format = format;
         // todo again deal with align
         constexpr int align = 32;
@@ -351,12 +341,13 @@ class basic_frame {
         //  like the old buffers stay if the new ones fail to allocate
         //  actually idk the buffers need to be unrefed before the call for sure
         // todo there should also be the option to use a custom allocator here
-        return av_frame_get_buffer(frame_.get(), align);
+        return errc{av_frame_get_buffer(frame_.get(), align)};
     }
 
-    result<void> alloc_buffers() {
+    // overload for audio params
+    // result<void> alloc_buffers() {
 
-    }
+    // }
 
     //format needs to be correct per the invariant
     //  otherwise this bounds check isnt actually safe
@@ -397,6 +388,9 @@ class basic_frame {
     AVFrame* avframe_ptr() noexcept {
         return frame_.get();
     }
+    const AVFrame* avframe_ptr() const noexcept {
+        return frame_.get();
+    }
 
     // todo extended data?
 
@@ -412,7 +406,7 @@ private:
         void operator()(AVFrame* frame) const noexcept {
             av_frame_free(&frame);
         }
-    }
+    };
 
     // probably needs to be more than justa private function
     //  noexcept if check frame alloc is noexcept
@@ -436,14 +430,17 @@ using frame = basic_frame<termiante_on_frame_alloc_failure,
 //  will prob need these
 // should they take a ptr or the frame class?
 // the frame is more flexible but its not expressive that it cant be null
-result<void> is_writable(const frame& f) {
+inline result<void> is_writable(frame& f) {
+    // why isnt this const?
     auto ec = av_frame_is_writable(f.avframe_ptr());
-    return ec;
+    return errc{ec};
 }
-result<void> make_writable(cosnt frame& f) {
+inline result<void> make_writable(frame& f) {
     auto ec = av_frame_make_writable(f.avframe_ptr());
-    return ec;
+    return errc{ec};
 }
 
 } // av
 } // luma
+
+#endif // LUMA_AV_FRAME_HPP

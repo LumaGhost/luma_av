@@ -1,11 +1,15 @@
 
 
+#ifndef LUMA_AV_CODEC_HPP
+#define LUMA_AV_CODEC_HPP
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
 #include <memory>
 
+#include <luma/av/result.hpp>
 #include <luma/av/frame.hpp>
 
 /*
@@ -70,8 +74,7 @@ result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
         return codec;
     } else {
         // think the error is always codec not found
-        auto ec = int{};
-        return return ec;
+        return errc::codec_not_found;
     }
 }
 
@@ -88,8 +91,9 @@ result<const AVCodec*> find_decoder(enum AVCodecID id) {
     const AVCodec* codec = avcodec_find_decoder(id);
     return codec_error_handling(codec);
 }
-result<const AVCodec*> find_decoder(const std::string_view name) {
-    const AVCodec* codec = avcodec_find_decoder_by_name(name);
+// think ffmpeg is expecting null terminated, so no sv here :/
+result<const AVCodec*> find_decoder(const std::string& name) {
+    const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
     return codec_error_handling(codec);
 }
 }// detail
@@ -120,7 +124,7 @@ class codec {
 
     }
 
-    explicit codec(const std::string_view name) : codec_{detail::find_decoder(name).value()} {
+    explicit codec(const std::string& name) : codec_{detail::find_decoder(name).value()} {
 
     }
 
@@ -153,7 +157,7 @@ result<codec> find_decoder(enum AVCodecID id) {
         return codec_res.error();
     }
 }
-result<codec> find_decoder(const std::string_view name) {
+result<codec> find_decoder(const std::string& name) {
     // todo think outcome try can be used here or some other tool in the library
     auto codec_res = detail::find_decoder(name);
     if (codec_res) {
@@ -166,7 +170,7 @@ result<codec> find_decoder(const std::string_view name) {
 class codec_parameters {
 
     private:
-    AVCodecParamerers* 
+    AVCodecParameters* par = nullptr;
 };
 
 // class for actually decoding, prob have
@@ -180,17 +184,22 @@ class codec_parameters {
 //  that doesnt allocate
 class codec_context {
 
+    // todo friendly solution to plug all of this nullptr functionality
+    //   into a type that wants those semantics?
+    //   something along the lines of crtp deriving from a detail type?s
+    //   just looking for a shortcut to help luma_av devs
+    //   and help enforce consistency
     constexpr codec_context() noexcept = default;
 
     constexpr codec_context(nullptr_t) : context_{nullptr} {}
 
     codec_context& operator=(nullptr_t) {
-        context_ = nullptr_t;
+        context_ = nullptr;
         return *this;
     }
 
     explicit operator bool() const noexcept {
-        return context_;
+        return bool{context_};
     }
 
     friend bool operator==(const codec_context& ctx, nullptr_t) noexcept {
@@ -258,7 +267,7 @@ class codec_context {
     //  even if its on completely different objects?
     result<void> open(AVDictionary**  options) {
         auto ec = avcodec_open2(get(), codec_, options);
-        return ec;
+        return errc{ec};
     }
 
     bool is_open() const noexcept {
@@ -284,13 +293,14 @@ class codec_context {
     //  well it could be null, in that case we say its on the user?
     result<void> send_packet(const AVPacket* p) {
         auto ec = avcodec_send_packet(get(), p);
-        return ec;
+        return errc{ec};
     }
 
     // convenience overload for our own packet
-    result<void> send_packet(const packet& p) {
-        return this->send_packet(p.avpacket_ptr()); // note packet design tbd
-    }
+    // pending luma::av::packet design
+    // result<void> send_packet(const packet& p) {
+    //     return this->send_packet(p.avpacket_ptr()); // note packet design tbd
+    // }
 
     /*
     " The encoder may create a reference to the frame data 
@@ -310,8 +320,8 @@ class codec_context {
     //  as a separate class. I like the type safe distinction between encoder and decoder
     //  since they have different capabilties and cant really be interchanged
     result<void> send_frame(const AVFrame* f) {
-        auto ec = avcodec_send_frame(f);
-        return ec;
+        auto ec = avcodec_send_frame(context_.get(), f);
+        return errc{ec};
     }
 
 
@@ -340,8 +350,8 @@ class codec_context {
     //  the user byob on the recieve frame call regardless
     */
     result<void> recieve_frame(frame& frame) {
-        auto ec = avcodec_receive_frame(context_, frame.avframe_ptr());
-        return ec;
+        auto ec = avcodec_receive_frame(context_.get(), frame.avframe_ptr());
+        return errc{ec};
     }
 
     // i guess the recieve functions should also have AVFrame/AVpacket overloads?
@@ -350,10 +360,11 @@ class codec_context {
     //  it def has to be "Advanced usage" unlike the send functions and decode/encode
     //  the user can actually mess this up if they modify the frame before making it writable
     //  so theres def more risk
-    result<void> recieve_packet(packet& p) {
-        auto ec = avcodec_receive_packet(context_, p.avpacket_ptr()); // note packet design tbd
-        return ec;
-    }
+    // pending luma::av::packet design
+    // result<void> recieve_packet(packet& p) {
+    //     auto ec = avcodec_receive_packet(context_, p.avpacket_ptr()); // note packet design tbd
+    //     return ec;
+    // }
 
     // same packet overloads from send_packet would
     //  be supported here
@@ -378,16 +389,17 @@ class codec_context {
     // same frame overloads from send_frame would
     //  be supported here
     // note: packet design tbd but planning to follow the frame
-    result<packet> encode(const AVFrame* f) {
-        LUMA_AV_OUTCOME_TRY(this->send_frame(p));
-        auto p = packet{};
-        LUMA_AV_OUTCOME_TRY(this->recieve_packet(p));
-        // the encoded packet p references the buffers inside
-        //  of the encoder, we need to copy those out so p has ownership
-        // packet version of make writable?
-        LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
-        return p;
-    }
+    // pending luma::av::packet design
+    // result<packet> encode(const AVFrame* f) {
+    //     LUMA_AV_OUTCOME_TRY(this->send_frame(f));
+    //     auto p = packet{};
+    //     LUMA_AV_OUTCOME_TRY(this->recieve_packet(p));
+    //     // the encoded packet p references the buffers inside
+    //     //  of the encoder, we need to copy those out so p has ownership
+    //     // packet version of make writable?
+    //     LUMA_AV_OUTCOME_TRY(luma::av::make_writable(p));
+    //     return p;
+    // }
 
     // this isnt global (unlike the codec) 
     //  so its okay for the user to modify it on a non const object
@@ -395,7 +407,7 @@ class codec_context {
         return context_.get();
     }
 
-    const AVCodecContext* get() noexcept const {
+    const AVCodecContext* get() const noexcept {
         return context_.get();
     }
 
@@ -412,13 +424,13 @@ class codec_context {
     // could make all of this public including the deleter possibly
     // im not sure at the moment which is better
     //  minimize scope/visibility by default, but dont hide useful functionality
-    friend result<context_ptr> alloc_context(const codec& codec) {
+    result<context_ptr> alloc_context(const codec& codec) {
         auto ctx = avcodec_alloc_context3(codec.get());
         if (ctx) {
             return context_ptr{ctx};
         } else {
-            auto ec = int{}; // i think this is an alloc failure
-            return ec;
+            // i think this is always an alloc failure?
+            return errc::codec_par_alloc_failure;
         }
     }
     const AVCodec* codec_ = nullptr;
@@ -430,3 +442,5 @@ class codec_context {
 
 } // av
 } // luma
+
+#endif // LUMA_AV_CODEC_HPP

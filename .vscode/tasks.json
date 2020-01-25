@@ -2,21 +2,38 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
+            "label": "conan install",
             "type": "shell",
-            "command": "cmake .. -DCMAKE_BUILD_TYPE=Release && make",
+            "command": "conan install . -if build --build missing",
             "options": {
-                "cwd": "${workspaceRoot}/build"
+                "cwd": "${workspaceRoot}"
             },
             "problemMatcher": []
-        }
-        ,
+        },
+        {
+            "label": "conan source",
+            "type": "shell",
+            "command": "conan source . -sf build",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "conan build",
+            "type": "shell",
+            "command": "conan build . -bf build",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": []
+        },
         {
             "label": "run",
             "type": "shell",
-            "command": "./test_project",
+            "command": "./build/test/bin/luma_av_tests",
             "options": {
-                "cwd": "${workspaceRoot}/build/bin"
+                "cwd": "${workspaceRoot}"
             },
             "problemMatcher": []
         }

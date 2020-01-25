@@ -11,15 +11,6 @@
             "problemMatcher": []
         },
         {
-            "label": "conan source",
-            "type": "shell",
-            "command": "conan source . -sf build",
-            "options": {
-                "cwd": "${workspaceRoot}"
-            },
-            "problemMatcher": []
-        },
-        {
             "label": "conan build",
             "type": "shell",
             "command": "conan build . -bf build",

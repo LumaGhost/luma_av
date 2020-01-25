@@ -70,6 +70,7 @@ extern "C" {
 }
 
 #include <memory>
+#include <variant>
 
 namespace luma {
 namespace av {

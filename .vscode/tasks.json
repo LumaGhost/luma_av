@@ -20,6 +20,15 @@
             "problemMatcher": []
         },
         {
+            "label": "compdb",
+            "type": "shell",
+            "command": "compdb -p build/ list > compile_commands.json",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "run",
             "type": "shell",
             "command": "./build/test/bin/luma_av_tests",

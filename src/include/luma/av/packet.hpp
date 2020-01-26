@@ -11,8 +11,56 @@ extern "C" {
 
 // https://ffmpeg.org/doxygen/3.2/group__lavc__packet.html
 
+/*
+dealing with the lack of a deep copy. how can we help the user
+    ensure safe unique ownership and not get accidently wrecked
+    by shared ownership
+    https://ffmpeg.org/doxygen/3.2/buffer_8h_source.html
+    there is av_buffer_make_writable... maybe we could make our
+    own make packet writable function
+*/
+
 namespace luma {
 namespace av {
+
+
+namespace detail {
+
+result<void> make_buffer_writable(AVBufferRef** buffy) {
+    return errc{av_buffer_make_writable(buffy)};
+}
+
+// todo may want a solution to easily wrapp an ffmpeg call
+//  without fully having to do a function
+//  would prob be a macro though so idk
+result<void> packet_copy_props(AVPacket* dst, const AVPacket* src) {
+    return errc{av_packet_copy_props(dst, src)};
+}
+
+result<void> packet_ref(AVPacket* src, const AVPacket* dst) {
+    return errc{av_packet_ref(src, dst)};
+}
+/*
+packet has two buffers, the main data and the side data
+    the side data is copied by av packet copy props
+    https://ffmpeg.org/doxygen/3.2/avpacket_8c_source.html#l00535
+can the side data even be reference counted?
+    isnt it always uniquely owned unless the user edits the ptr themselves?
+*/
+result<void> make_packet_writable(AVPacket* pkt) {
+    // then can i just do this and be good?
+    LUMA_AV_OUTCOME_TRY(make_buffer_writable(&pkt->buf));
+    return errc{};
+}
+// i think this is a fully deep copy with unique ownership
+result<void> packet_copy(AVPacket* dst, const AVPacket* src) {
+    LUMA_AV_OUTCOME_TRY(packet_copy_props(dst, src));
+    LUMA_AV_OUTCOME_TRY(packet_ref(dst, src));
+    LUMA_AV_OUTCOME_TRY(make_buffer_writable(&dst->buf));
+    return errc{};
+}
+
+} // detail
 
 class packet {
 
@@ -35,7 +83,8 @@ class packet {
     //  solution by creating an avpacket on the stack then doing whatever
     //  with it e.g. passing it to an encoder then doing a deep copy of the packet
     explicit packet(const AVPacket* pkt) : packet{} {
-        copy_packet(pkt_.get(), pkt).value();
+        // copy_packet(pkt_.get(), pkt).value();
+        detail::packet_copy(pkt_.get(), pkt).value();
     }
 
     // packets are too big for implicit copy?
@@ -62,7 +111,7 @@ class packet {
     AVPacket* get() noexcept {
         return pkt_.get();
     }
-const AVPacket* get() const noexcept {
+    const AVPacket* get() const noexcept {
         return pkt_.get();
     }
 
@@ -95,11 +144,11 @@ const AVPacket* get() const noexcept {
     result<void> new_packet(AVPacket* pkt, int size) {
         return errc{av_new_packet(pkt, size)};
     }
-    result<void> copy_packet(AVPacket* dst, const AVPacket* src) {
-        // todo ugh its deprecated. why doesnt ffmpeg fuck with
-        //  deep copies of avpacket?
-        return errc{av_copy_packet(dst, src)};
-    }
+    // result<void> copy_packet(AVPacket* dst, const AVPacket* src) {
+    //     // todo ugh its deprecated. why doesnt ffmpeg fuck with
+    //     //  deep copies of avpacket?
+    //     return errc{av_copy_packet(dst, src)};
+    // }
     packet_ptr pkt_ = nullptr;
 
 };

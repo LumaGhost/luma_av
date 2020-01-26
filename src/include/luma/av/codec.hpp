@@ -477,11 +477,12 @@ class codec_context {
     //  be supported here
     result<frame> decode(const AVPacket* p) {
         LUMA_AV_OUTCOME_TRY(this->send_packet(p));
-        auto f = frame{};
-        LUMA_AV_OUTCOME_TRY(this->recieve_frame(f));
+        LUMA_AV_OUTCOME_TRY(this->recieve_frame(decoder_frame_));
         // the decoded frame f reference the frame buffers inside
         //  of the decoder, we need to copy those out so f has ownership
-        LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
+        // LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
+        auto f = frame{};
+        LUMA_AV_OUTCOME_TRY(f.copy(decoder_frame_));
         return f;
     }
 
@@ -497,11 +498,10 @@ class codec_context {
     //  be supported here
     result<packet> encode(const AVFrame* f) {
         LUMA_AV_OUTCOME_TRY(this->send_frame(f));
-        AVPacket pkt;
-        LUMA_AV_OUTCOME_TRY(this->recieve_packet(&pkt));
+        LUMA_AV_OUTCOME_TRY(this->recieve_packet(encoder_packet_));
         // the encoded packet p references the buffers inside
         //  of the encoder, we need to copy those out so p has ownership
-        return packet{&pkt};
+        return packet{encoder_packet_.get()};
     }
     // this function (like decode) assumes the user wants a uniquely
     //  owned frame/packet. otherwise this is inefficient comapred
@@ -559,6 +559,11 @@ class codec_context {
     }
     const AVCodec* codec_ = nullptr;
     context_ptr context_ = nullptr; 
+    // all of these would need a null state though
+    // also the members are pretty awkward for 
+    //  users that what to use the send/recieve functions themselves
+    frame decoder_frame_;
+    packet encoder_packet_;
 };
 
 

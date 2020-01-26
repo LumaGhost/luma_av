@@ -31,7 +31,7 @@ enum class errc : int
   success     = 0,
   eof         = AVERROR_EOF,
   codec_not_found = 1,  // make sure this doesnt clash with any existing ffmpeg codes
-  alloc_failure = 2 // clash?
+  alloc_failure = AVERROR(ENOMEM) // maybe no_memory is a better name?
 };
 
 // i *think* this is how beast does it

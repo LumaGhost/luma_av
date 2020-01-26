@@ -62,6 +62,11 @@ any easier ways for the user to check if the frame has buffers?
     the whole buffer invariant about not just the data but linesize
     and the buffer sentitive params and ownership too
     we could maybe do bool conversion but idk if thats expressive
+i think the way avpacket is designed is the answer here too.
+    i dont think the null state is actually as cumbersome as i though
+    especially if the type isnt null by default. and a deep copy
+    from a const AVFrame* isntead of those copy methods
+    also having the cheap move is really important i think
 */
 
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
@@ -303,6 +308,13 @@ class basic_frame {
     // }
 
     // i think its prob better just to do a full copy
+    // after some time i think free functions are better for this
+    //  sort of operation since its more consistent with the ffmpeg api style
+    // frame.copy(other) isnt as explicit about src/destination
+    //  is frame copied into other or other into frame?
+    //  after seeing it on packet i definitely prefer the
+    //  deep copy construction from AVFrame*/AVPacket*
+    //  over a member function like this
     result<void> copy(const basic_frame& other) {
         // todo weird at all that this doesnt use the users policy?
         //  could make it more explicit that its just for the moves

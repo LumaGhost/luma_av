@@ -5,6 +5,7 @@ RUN apt update && apt install -y \
     cmake \
     clang-7 \
     clang-tools-7 && \
+    pip3 install compdb && \
     pip3 install conan && \
     conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan && \
     conan profile new --detect default && \

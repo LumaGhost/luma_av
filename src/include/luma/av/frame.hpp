@@ -21,6 +21,7 @@
 *  error handling desing: error codes? result? exceptions?
 *  inital first draft and tests for frame design 
 *  deside on align customization point
+*  gsl adoption? or some other span/contracts implementation
 */
 
 /**

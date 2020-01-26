@@ -11,6 +11,7 @@ extern "C" {
 
 #include <luma/av/result.hpp>
 #include <luma/av/frame.hpp>
+#include <luma/av/packet.hpp>
 
 /*
 https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e025894b1fc307a
@@ -399,10 +400,9 @@ class codec_context {
     }
 
     // convenience overload for our own packet
-    // pending luma::av::packet design
-    // result<void> send_packet(const packet& p) {
-    //     return this->send_packet(p.avpacket_ptr()); // note packet design tbd
-    // }
+    result<void> send_packet(const packet& p) {
+        return this->send_packet(p.get());
+    }
 
     /*
     " The encoder may create a reference to the frame data 
@@ -462,11 +462,16 @@ class codec_context {
     //  it def has to be "Advanced usage" unlike the send functions and decode/encode
     //  the user can actually mess this up if they modify the frame before making it writable
     //  so theres def more risk
-    // pending luma::av::packet design
-    // result<void> recieve_packet(packet& p) {
-    //     auto ec = avcodec_receive_packet(context_, p.avpacket_ptr()); // note packet design tbd
-    //     return ec;
-    // }
+    result<void> recieve_packet(packet& p) {
+        auto ec = avcodec_receive_packet(context_.get(), p.get());
+        return errc{ec};
+    }
+    result<void> recieve_packet(AVPacket* p) {
+        auto ec = avcodec_receive_packet(context_.get(), p);
+        return errc{ec};
+    }
+    // both of these functions are risky i guess since in either case
+    //  the packet and the encoder share ownership of the pkt buffer
 
     // same packet overloads from send_packet would
     //  be supported here
@@ -490,18 +495,29 @@ class codec_context {
     */
     // same frame overloads from send_frame would
     //  be supported here
-    // note: packet design tbd but planning to follow the frame
-    // pending luma::av::packet design
-    // result<packet> encode(const AVFrame* f) {
-    //     LUMA_AV_OUTCOME_TRY(this->send_frame(f));
-    //     auto p = packet{};
-    //     LUMA_AV_OUTCOME_TRY(this->recieve_packet(p));
-    //     // the encoded packet p references the buffers inside
-    //     //  of the encoder, we need to copy those out so p has ownership
-    //     // packet version of make writable?
-    //     LUMA_AV_OUTCOME_TRY(luma::av::make_writable(p));
-    //     return p;
-    // }
+    result<packet> encode(const AVFrame* f) {
+        LUMA_AV_OUTCOME_TRY(this->send_frame(f));
+        AVPacket pkt;
+        LUMA_AV_OUTCOME_TRY(this->recieve_packet(&pkt));
+        // the encoded packet p references the buffers inside
+        //  of the encoder, we need to copy those out so p has ownership
+        return packet{&pkt};
+    }
+    // this function (like decode) assumes the user wants a uniquely
+    //  owned frame/packet. otherwise this is inefficient comapred
+    //  to doing manual send/recieve calls due to us creating
+    //  a new packet or frame each time here isntead of reusing
+    // in both cases (encode/decode) i dont think there is a more
+    //  efficient way to eccode/decode and produce a uniquesly owned packet/frame?
+    //  actually with the packet since we do a deep copy every time we can reuse
+    //  the pkt each time even if the user wants a uniquely owned packet.
+    //  the frame one i dont think we can get more efficient, sizeof(AVFrame)
+    //  isnt part of the public abi (afaik) so we cant avoid an extra call
+    //  to avframe alloc without using make_writable. we could keep a frame
+    //  as a member and reuse it but that would still result in decode
+    //  costing the same (one call to frame alloc, copy props, and alloc + copy of the buffers)
+    // note: keeping the frame/packet as a member does help us avoid wasting allocations
+    //  in the case where the frame/packet isnt ready from the decoder/encoder
 
     // this isnt global (unlike the codec) 
     //  so its okay for the user to modify it on a non const object

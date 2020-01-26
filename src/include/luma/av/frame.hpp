@@ -70,6 +70,7 @@ any easier ways for the user to check if the frame has buffers?
 
 extern "C" {
 #include <libavutil/frame.h>
+#include <libavutil/imgutils.h>
 }
 
 #include <memory>

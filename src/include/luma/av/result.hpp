@@ -30,7 +30,7 @@ enum class errc : int
   success     = 0,
   eof         = AVERROR_EOF,
   codec_not_found = 1,  // make sure this doesnt clash with any existing ffmpeg codes
-  codec_par_alloc_failure = 2 // clash?
+  alloc_failure = 2 // clash?
 };
 
 // i *think* this is how beast does it

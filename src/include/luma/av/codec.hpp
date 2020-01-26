@@ -98,6 +98,7 @@ result<const AVCodec*> find_decoder(const std::string& name) {
 }
 }// detail
 
+// https://ffmpeg.org/doxygen/3.4/structAVCodec.html#a16e4be8873bd93ac84c7b7d86455d518
 // class wrapper helps because it makes the lifetime/ownership easier to understand
 //  i def was confused at first about the ownershup of avcodec. the global
 //  ownership is def hard for a new person to understand i think
@@ -170,6 +171,7 @@ result<codec> find_decoder(const std::string& name) {
 // struct allocate_t {};
 // inline constexpr auto allocate = allocate_t{};
 
+// https://ffmpeg.org/doxygen/3.2/structAVCodecParameters.html
 class codec_parameters {
     public:
 

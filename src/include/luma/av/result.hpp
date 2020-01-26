@@ -18,6 +18,7 @@ extern "C" {
 #define LUMA_AV_OUTCOME_TRY BOOST_OUTCOME_TRY
 
 // https://www.boost.org/doc/libs/develop/libs/outcome/doc/html/motivation/plug_error_code.html
+// https://www.ffmpeg.org/doxygen/2.3/error_8h_source.html
 
 namespace luma {
 namespace av {

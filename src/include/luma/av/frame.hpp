@@ -64,6 +64,9 @@ any easier ways for the user to check if the frame has buffers?
 */
 
 // https://ffmpeg.org/doxygen/3.3/group__lavu__frame.html
+// https://ffmpeg.org/doxygen/3.2/pixdesc_8h.html
+// https://github.com/FFmpeg/FFmpeg/blob/master/libavutil/imgutils.c
+// https://ffmpeg.org/doxygen/2.4/group__lavu__picture.html#ga8eddd074d5eb6a235591013675ac1055
 
 #ifndef LUMA_AV_FRAME_HPP
 #define LUMA_AV_FRAME_HPP

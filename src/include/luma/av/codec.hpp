@@ -267,7 +267,7 @@ class codec_context {
     //  instead the user must explicitly ask for null
     // constexpr codec_context() noexcept = default;
 
-    constexpr codec_context(std::nullptr_t) : context_{nullptr} {}
+    codec_context(std::nullptr_t) : context_{nullptr} {}
 
     codec_context& operator=(std::nullptr_t) {
         context_ = nullptr;

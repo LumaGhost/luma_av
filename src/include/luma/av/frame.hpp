@@ -319,7 +319,7 @@ class basic_frame {
         // todo weird at all that this doesnt use the users policy?
         //  could make it more explicit that its just for the moves
         //  since theres no way to handle the error
-        LUMA_AV_OUTCOME_TRY(this->copy_props_props(other));
+        LUMA_AV_OUTCOME_TRY(this->copy_props(other));
         // todo align?
         // i think its based on the cpu so can it be known at compile time?
         //  but its only needed for buffers so maybe its misleading as a tp?

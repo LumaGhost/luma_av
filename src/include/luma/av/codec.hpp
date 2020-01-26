@@ -11,6 +11,7 @@ extern "C" {
 
 #include <luma/av/result.hpp>
 #include <luma/av/frame.hpp>
+#include <luma/av/detail/unique_or_null.hpp>
 #include <luma/av/packet.hpp>
 
 /*
@@ -97,6 +98,19 @@ result<const AVCodec*> find_decoder(const std::string& name) {
     const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
     return codec_error_handling(codec);
 }
+
+struct codec_par_deleter {
+    void operator()(AVCodecParameters* par) const noexcept {
+        avcodec_parameters_free(&par);
+    }
+};
+
+struct codec_context_deleter {
+    void operator()(AVCodecContext* ctx) const noexcept {
+        avcodec_free_context(&ctx);
+    }
+};
+
 }// detail
 
 // https://ffmpeg.org/doxygen/3.4/structAVCodec.html#a16e4be8873bd93ac84c7b7d86455d518
@@ -173,10 +187,13 @@ result<codec> find_decoder(const std::string& name) {
 // inline constexpr auto allocate = allocate_t{};
 
 // https://ffmpeg.org/doxygen/3.2/structAVCodecParameters.html
-class codec_parameters {
+class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail::codec_par_deleter> {
     public:
 
-    // nullptr functionality
+    using base_type = detail::unique_or_null<AVCodecParameters, detail::codec_par_deleter>;
+    // do i need this using here?
+    //  i didnt need it in the tests. i forget the rules
+    using base_type::get;
 
     // to distinguish from the default constructor?
     //   or should allocating be the defaut?
@@ -187,12 +204,13 @@ class codec_parameters {
     //    and the codec par has a default state already
     //  this does make the after move different from the default
     //   but at least after move still meets the class invariant
-    codec_parameters() : codec_par_{alloc_codec_par().value()} {
+    codec_parameters() : base_type{alloc_codec_par().value()} {
 
     }
 
-    codec_parameters(const AVCodecParameters* par) : codec_par_{alloc_codec_par().value()} {
-        copy_par(codec_par_.get(), par).value();
+    codec_parameters(const AVCodecParameters* par) 
+        : base_type{alloc_codec_par().value()} {
+        copy_par(this->get(), par).value();
     }
     // the user will prob have .reset available if they want
     //   to construct from an owning AVCodecPar
@@ -200,13 +218,13 @@ class codec_parameters {
     //   besides the ptr from allocating the par
 
     // think the codecpar is small enough to allow implicit copy by default
-    codec_parameters(const codec_parameters& other) : codec_par_{alloc_codec_par().value()} {
-        copy_par(codec_par_.get(), other.codec_par_.get()).value();
+    codec_parameters(const codec_parameters& other) : base_type{alloc_codec_par().value()} {
+        copy_par(this->get(), other.get()).value();
     }
     codec_parameters& operator=(const codec_parameters& other) {
         // think this is all you need. it should completely overwrite
         //  the first codec par with the second
-        copy_par(codec_par_.get(), other.codec_par_.get()).value();
+        copy_par(this->get(), other.get()).value();
         return *this;
     }
 
@@ -214,28 +232,14 @@ class codec_parameters {
     codec_parameters(codec_parameters&&) = default;
     codec_parameters& operator=(codec_parameters&&) = default;
 
-    AVCodecParameters* get() noexcept {
-        return codec_par_.get();
-    }
-
-    const AVCodecParameters* get() const noexcept {
-        return codec_par_.get();
-    }
-
 
     private:
-    struct codec_par_deleter {
-        void operator()(AVCodecParameters* par) const noexcept {
-            avcodec_parameters_free(&par);
-        }
-    };
     // prob all static in the cpp eventually?
     //  something less visible than private functions
-    using codec_par_ptr = std::unique_ptr<AVCodecParameters, codec_par_deleter>;
-    result<codec_par_ptr> alloc_codec_par() {
+    result<base_type> alloc_codec_par() {
         auto par =  avcodec_parameters_alloc();
         if (par) {
-            return codec_par_ptr{par};
+            return base_type{par};
         } else {
             return errc::alloc_failure;
         }
@@ -243,7 +247,6 @@ class codec_parameters {
     result<void> copy_par(AVCodecParameters* out_par, const AVCodecParameters* par) {
         return errc{avcodec_parameters_copy(out_par, par)};
     }
-    codec_par_ptr codec_par_ = nullptr;
 };
 
 // class for actually decoding, prob have
@@ -255,7 +258,10 @@ class codec_parameters {
 //  complicated than the frame (the frame has extra invaraints because of the buffer and linesize)
 //  so maybe we can go for a null state here? that way we can have a cheap move
 //  that doesnt allocate
-class codec_context {
+class codec_context : public detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>{
+
+    using base_type = detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>;
+    using base_type::get;
 
     // todo friendly solution to plug all of this nullptr functionality
     //   into a type that wants those semantics?
@@ -267,60 +273,6 @@ class codec_context {
     //  instead the user must explicitly ask for null
     // constexpr codec_context() noexcept = default;
 
-    codec_context(std::nullptr_t) : context_{nullptr} {}
-
-    codec_context& operator=(std::nullptr_t) {
-        context_ = nullptr;
-        return *this;
-    }
-
-    explicit operator bool() const noexcept {
-        return bool{context_};
-    }
-
-    friend bool operator==(const codec_context& ctx, std::nullptr_t) noexcept {
-        return ctx.context_ == nullptr;
-    }
-    friend bool operator==(std::nullptr_t, const codec_context& ctx) noexcept {
-        return ctx.context_ == nullptr;
-    }
-    friend bool operator!=(const codec_context& ctx, std::nullptr_t) noexcept {
-        return ctx.context_ != nullptr;
-    }
-    friend bool operator!=(std::nullptr_t, const codec_context& ctx) noexcept {
-        return ctx.context_ != nullptr;
-    }
-
-    // other functionality that interacts with the null state
-    void reset(AVCodecContext* ctx = nullptr) noexcept {
-        context_.reset(ctx);
-    }
-    AVCodecContext* release() noexcept {
-        return context_.release();
-    }
-
-    // deref operator? i dont think any api uses AVCodecContext&
-    //  so there would be no need for operator()*
-    // operator-> could be considered i think since people definitely
-    //  want to access codec context params
-    //  feel like our own type safe accessors are prob a better approach
-    //  than just letting the user deref since its way less encapsulaton.
-    //  we have the get method but i think that will hopefully get branded
-    //  as the one "youre on your own" accecss point and its geared towards
-    //  advanced users. i feel like its harder to communicate that a deref
-    //  operator is only for advanced users. on that note we may want to
-    //  consider a name other than "get" if its only for advanced users
-    //  i liked the slightly verbose naming on the frame one. pros of naming
-    //  "get" is that we have a consistent interface that would allow us to
-    //   use crtp to plug in the null ptr semantics on each type
-    //   thats going to behave that way
-    //   a big factor for me is how complex the invariant is.
-    //   if there isnt much to mess up than a friendly "get"
-    //   and maybe even a deref is probably fine
-    //  i think the ideall is that the user doesnt really have
-    //  to deal with the AVCodecContext*, but if they do i think get is enough
-    //  i also dont like having operator-> without operator*
-
     // do we want to support initializing from a null codec?
     //  we already have our nullptr constructor used up
     //  so to avoid being ambiguous i think this can just take a codec
@@ -328,7 +280,7 @@ class codec_context {
     //  and use the context constructor
     // explicit codec_context(const AVCodec*);
     explicit codec_context(const codec& codec) 
-        : codec_{codec.get()}, context_{alloc_context(codec).value()} {
+        : base_type{alloc_context(codec).value()}, codec_{codec.get()}{
 
     }
 
@@ -343,8 +295,9 @@ class codec_context {
     //  as long as luma codec par offers easy conversions
     //  i think taking the luma version is better since
     //  it expresses that null isnt valid
-    explicit codec_context(const codec& codec, const codec_parameters& par) : codec_context{codec} {
-        codec_ctx_from_par(context_.get(), par.get()).value();
+    explicit codec_context(const codec& codec, const codec_parameters& par) 
+        : codec_context{codec} {
+        codec_ctx_from_par(this->get(), par.get()).value();
     }
 
     // looks like the context itself cannot be deeply copied
@@ -361,7 +314,7 @@ class codec_context {
     //  this is an allocation and a copy of the current parameters?
     result<codec_parameters> codec_par() const {
         auto par = codec_parameters{};
-        LUMA_AV_OUTCOME_TRY(codec_par_from_ctx(par.get(), context_.get()));
+        LUMA_AV_OUTCOME_TRY(codec_par_from_ctx(par.get(), this->get()));
         return par;
     }
 
@@ -369,7 +322,7 @@ class codec_context {
     // two threads cant call this function at the same time
     //  even if its on completely different objects?
     result<void> open(AVDictionary**  options) {
-        auto ec = avcodec_open2(get(), codec_, options);
+        auto ec = avcodec_open2(this->get(), codec_, options);
         return errc{ec};
     }
 
@@ -377,7 +330,7 @@ class codec_context {
         // this is ffmpegs implementation
         //  idk why this function isnt const
         // https://ffmpeg.org/doxygen/3.2/group__lavc__misc.html#ga906dda732e79eac12067c6d7ea19b630
-        return !!context_->internal;
+        return !!this->get()->internal;
     }
 
     /*
@@ -395,7 +348,7 @@ class codec_context {
     //  no safety penality but more felxibility?
     //  well it could be null, in that case we say its on the user?
     result<void> send_packet(const AVPacket* p) {
-        auto ec = avcodec_send_packet(get(), p);
+        auto ec = avcodec_send_packet(this->get(), p);
         return errc{ec};
     }
 
@@ -422,7 +375,7 @@ class codec_context {
     //  as a separate class. I like the type safe distinction between encoder and decoder
     //  since they have different capabilties and cant really be interchanged
     result<void> send_frame(const AVFrame* f) {
-        auto ec = avcodec_send_frame(context_.get(), f);
+        auto ec = avcodec_send_frame(this->get(), f);
         return errc{ec};
     }
 
@@ -452,7 +405,7 @@ class codec_context {
     //  the user byob on the recieve frame call regardless
     */
     result<void> recieve_frame(frame& frame) {
-        auto ec = avcodec_receive_frame(context_.get(), frame.avframe_ptr());
+        auto ec = avcodec_receive_frame(this->get(), frame.avframe_ptr());
         return errc{ec};
     }
 
@@ -463,11 +416,11 @@ class codec_context {
     //  the user can actually mess this up if they modify the frame before making it writable
     //  so theres def more risk
     result<void> recieve_packet(packet& p) {
-        auto ec = avcodec_receive_packet(context_.get(), p.get());
+        auto ec = avcodec_receive_packet(this->get(), p.get());
         return errc{ec};
     }
     result<void> recieve_packet(AVPacket* p) {
-        auto ec = avcodec_receive_packet(context_.get(), p);
+        auto ec = avcodec_receive_packet(this->get(), p);
         return errc{ec};
     }
     // both of these functions are risky i guess since in either case
@@ -519,33 +472,17 @@ class codec_context {
     // note: keeping the frame/packet as a member does help us avoid wasting allocations
     //  in the case where the frame/packet isnt ready from the decoder/encoder
 
-    // this isnt global (unlike the codec) 
-    //  so its okay for the user to modify it on a non const object
-    AVCodecContext* get() noexcept {
-        return context_.get();
-    }
-
-    const AVCodecContext* get() const noexcept {
-        return context_.get();
-    }
-
 
     private:
-    struct codec_context_deleter {
-        void operator()(AVCodecContext* ctx) const noexcept {
-            avcodec_free_context(&ctx);
-        }
-    };
-    using context_ptr = std::unique_ptr<AVCodecContext, codec_context_deleter>;
     // again i think the result error handling is more expressive than null error handling
     //  and signficiantly more friendly to excepton users
     // could make all of this public including the deleter possibly
     // im not sure at the moment which is better
     //  minimize scope/visibility by default, but dont hide useful functionality
-    result<context_ptr> alloc_context(const codec& codec) {
+    result<base_type> alloc_context(const codec& codec) {
         auto ctx = avcodec_alloc_context3(codec.get());
         if (ctx) {
-            return context_ptr{ctx};
+            return base_type{ctx};
         } else {
             // i think this is always an alloc failure?
             return errc::alloc_failure;
@@ -557,8 +494,7 @@ class codec_context {
     result<void> codec_ctx_from_par(AVCodecContext* ctx, const AVCodecParameters* par) const {
         return errc{avcodec_parameters_to_context(ctx, par)};
     }
-    const AVCodec* codec_ = nullptr;
-    context_ptr context_ = nullptr; 
+    const AVCodec* codec_ = nullptr; 
     // all of these would need a null state though
     // also the members are pretty awkward for 
     //  users that what to use the send/recieve functions themselves

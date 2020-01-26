@@ -8,6 +8,7 @@ endif()
 find_package(GTest REQUIRED)
 
 add_executable(luma_av_tests test_main.cpp
+                             luma/av/detail/unique_or_null_tests.cpp
                              luma/av/frame_tests.cpp
                              luma/av/codec_tests.cpp
                              luma/av/result_tests.cpp)

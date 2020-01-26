@@ -28,7 +28,7 @@ namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
 enum class errc : int
 {
   success     = 0,
-  // eof         = AVERROR_EOF,  // MKTAG not declared in this scope?
+  eof         = AVERROR_EOF,
   codec_not_found = 1,  // make sure this doesnt clash with any existing ffmpeg codes
   codec_par_alloc_failure = 2 // clash?
 };

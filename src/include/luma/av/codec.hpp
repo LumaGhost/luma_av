@@ -32,6 +32,8 @@ transcoder class for conveinence so the user doesnt have to
     some allocations if you know the user wants to transcode
 consistent library wide stance on how/if underlying "unsafe"
     ffmpeg is accessed/exposed
+maybe codec context ctor can have tags to let the user alloc
+    a frame and/or packet workspace or not?
 
 def need to put together a statement on error handling
     looking like a combination of result, exceptions (from constructors)

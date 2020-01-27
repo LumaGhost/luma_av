@@ -22,6 +22,11 @@
 *  inital first draft and tests for frame design 
 *  deside on align customization point
 *  gsl adoption? or some other span/contracts implementation
+*  sws context functionality (pixel format conversions, scaling, filtering)
+*  making sure all types with a null state have a way to recover
+*   like e.g. a method to realloc or reinitialize somehow
+*  use ffmpeg examples to evaluate the libraries functionality. side by side
+*   of the ffmpeg example and luma av example for the same functionality
 */
 
 /**

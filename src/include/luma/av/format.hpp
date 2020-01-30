@@ -26,12 +26,12 @@ struct format_context_deleter {
     }
 };
 
-result<void> open_input(AVFormatContext** ps, const char* url,
+inline result<void> open_input(AVFormatContext** ps, const char* url,
 		                AVInputFormat* fmt, AVDictionary** options) {
     return errc{avformat_open_input(ps, url, fmt, options)};
 } 	
 
-result<void> find_stream_info(AVFormatContext* ic,
+inline result<void> find_stream_info(AVFormatContext* ic,
 		                      AVDictionary** options) {
     return errc{avformat_find_stream_info(ic, options)};
 }

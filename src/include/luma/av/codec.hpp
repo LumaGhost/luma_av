@@ -73,7 +73,7 @@ namespace detail {
 //  maybe but i think its stilll slightly more expressive and its
 //  way more friendly to exception users typing .value to get the exception
 //  instead of basically writing this function
-result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
+inline result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
     if (codec) {
         return codec;
     } else {
@@ -91,12 +91,12 @@ result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
 //  i think its prob just okay to use avcodec straight up?
 //  maybe a lightweight wrapper that just stores the pointer?
 // overload set since its c++ and we can do that
-result<const AVCodec*> find_decoder(enum AVCodecID id) {
+inline result<const AVCodec*> find_decoder(enum AVCodecID id) {
     const AVCodec* codec = avcodec_find_decoder(id);
     return codec_error_handling(codec);
 }
 // think ffmpeg is expecting null terminated, so no sv here :/
-result<const AVCodec*> find_decoder(const std::string& name) {
+inline result<const AVCodec*> find_decoder(const std::string& name) {
     const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
     return codec_error_handling(codec);
 }
@@ -166,7 +166,7 @@ class codec {
 };
 
 // if people want to use the error code api
-result<codec> find_decoder(enum AVCodecID id) {
+inline result<codec> find_decoder(enum AVCodecID id) {
     // todo think outcome try can be used here or some other tool in the library
     auto codec_res = detail::find_decoder(id);
     if (codec_res) {
@@ -175,7 +175,7 @@ result<codec> find_decoder(enum AVCodecID id) {
         return codec_res.error();
     }
 }
-result<codec> find_decoder(const std::string& name) {
+inline result<codec> find_decoder(const std::string& name) {
     // todo think outcome try can be used here or some other tool in the library
     auto codec_res = detail::find_decoder(name);
     if (codec_res) {

@@ -407,7 +407,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     //  the user byob on the recieve frame call regardless
     */
     result<void> recieve_frame(frame& frame) {
-        auto ec = avcodec_receive_frame(this->get(), frame.avframe_ptr());
+        auto ec = avcodec_receive_frame(this->get(), frame.get());
         return errc{ec};
     }
 
@@ -436,9 +436,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         // the decoded frame f reference the frame buffers inside
         //  of the decoder, we need to copy those out so f has ownership
         // LUMA_AV_OUTCOME_TRY(luma::av::make_writable(f));
-        auto f = frame{};
-        LUMA_AV_OUTCOME_TRY(f.copy(decoder_frame_));
-        return f;
+        return frame{decoder_frame_.get()};
     }
 
     /*

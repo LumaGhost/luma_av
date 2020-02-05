@@ -101,6 +101,18 @@ inline std::error_code make_error_code(luma::av::errc e)
 template <class T>
 using result = luma::av::outcome::std_result<T, luma::av::error_code>;
 
+namespace detail {
+
+inline result<void> ffmpeg_code_to_result(int ffmpeg_code) {
+  if (ffmpeg_code == 0) {
+    return luma::av::outcome::success();
+  } else {
+    return luma::av::make_error_code(errc{ffmpeg_code});
+  }
+}
+
+}
+
 } // av
 } // luma
 

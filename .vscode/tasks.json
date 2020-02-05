@@ -31,7 +31,7 @@
         {
             "label": "run",
             "type": "shell",
-            "command": "./build/test/bin/luma_av_tests",
+            "command": "./build/test/luma_av_tests",
             "options": {
                 "cwd": "${workspaceRoot}"
             },

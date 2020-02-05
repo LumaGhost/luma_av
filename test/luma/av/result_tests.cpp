@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+using namespace luma::av;
+
 TEST(result_unit, outcome_example) {
   std::error_code ec = luma::av::errc::success;
 
@@ -19,5 +21,23 @@ TEST(result_unit, outcome_example) {
     << (ec == std::errc::result_out_of_range) << std::endl;
 
   // can we compare to ints (ffmpeg error codes?)
-  ASSERT_EQ(ec.value(), AVERROR_EXIT);
+  ASSERT_EQ(ec.value(), 0);
+}
+
+TEST(result_unit, success) {
+  auto r = result<void>{luma::av::outcome::success()};
+  ASSERT_TRUE(r);
+  r.value();
+}
+
+TEST(result_unit, ffmpeg_code) {
+  auto r = result<void>{errc{AVERROR_EOF}};
+  ASSERT_FALSE(r);
+  ASSERT_THROW(r.value(), std::system_error);
+}
+
+TEST(result_unit, ffmpeg_success) {
+  auto r = detail::ffmpeg_code_to_result(0);
+  ASSERT_TRUE(r);
+  r.value();
 }

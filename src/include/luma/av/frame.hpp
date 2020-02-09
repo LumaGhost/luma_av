@@ -28,7 +28,7 @@ using unique_or_null_frame = detail::unique_or_null<AVFrame, detail::frame_delet
 } // detail
 
 // todo static in cpp
-result<detail::unique_or_null_frame> checked_frame_alloc() {
+inline result<detail::unique_or_null_frame> checked_frame_alloc() {
     auto* frame = av_frame_alloc();
     if (frame) {
         return detail::unique_or_null_frame{frame};

@@ -27,18 +27,18 @@ namespace av {
 namespace detail {
 
 inline result<void> make_buffer_writable(AVBufferRef** buffy) {
-    return errc{av_buffer_make_writable(buffy)};
+    return detail::ffmpeg_code_to_result(av_buffer_make_writable(buffy));
 }
 
 // todo may want a solution to easily wrapp an ffmpeg call
 //  without fully having to do a function
 //  would prob be a macro though so idk
 inline result<void> packet_copy_props(AVPacket* dst, const AVPacket* src) {
-    return errc{av_packet_copy_props(dst, src)};
+    return detail::ffmpeg_code_to_result(av_packet_copy_props(dst, src));
 }
 
 inline result<void> packet_ref(AVPacket* src, const AVPacket* dst) {
-    return errc{av_packet_ref(src, dst)};
+    return detail::ffmpeg_code_to_result(av_packet_ref(src, dst));
 }
 /*
 packet has two buffers, the main data and the side data
@@ -50,14 +50,14 @@ can the side data even be reference counted?
 inline result<void> make_packet_writable(AVPacket* pkt) {
     // then can i just do this and be good?
     LUMA_AV_OUTCOME_TRY(make_buffer_writable(&pkt->buf));
-    return errc{};
+    return luma::av::outcome::success();
 }
 // i think this is a fully deep copy with unique ownership
 inline result<void> packet_copy(AVPacket* dst, const AVPacket* src) {
     LUMA_AV_OUTCOME_TRY(packet_copy_props(dst, src));
     LUMA_AV_OUTCOME_TRY(packet_ref(dst, src));
     LUMA_AV_OUTCOME_TRY(make_buffer_writable(&dst->buf));
-    return errc{};
+    return luma::av::outcome::success();
 }
 
 } // detail
@@ -74,7 +74,7 @@ class packet {
 
     // strong type?
     explicit packet(int size) : packet{} {
-        new_packet(pkt_.get(), size).value();
+        this->new_packet(pkt_.get(), size).value();
     }
 
     // there is no packet equivalent of avfame_make_writable

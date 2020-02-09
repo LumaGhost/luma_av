@@ -26,14 +26,28 @@ struct format_context_deleter {
     }
 };
 
+using = unique_or_null_format_ctx = detail::unique_or_null<AVFormatContext, 
+                                                           detail::format_context_deleter>
+
+// todo static in cpp
+inline result<unique_or_null_format_ctx> alloc_format_ctx() {
+    auto ctx = avformat_alloc_context();
+    if (ctx) {
+        return unique_or_null_format_ctx{ctx};
+    } else {
+        return errc::alloc_failure;
+    }
+}
+
+// todo i think functions like this can be replaced with macros
 inline result<void> open_input(AVFormatContext** ps, const char* url,
 		                AVInputFormat* fmt, AVDictionary** options) {
-    return errc{avformat_open_input(ps, url, fmt, options)};
+    return detail::ffmpeg_code_to_result(avformat_open_input(ps, url, fmt, options));
 } 	
 
 inline result<void> find_stream_info(AVFormatContext* ic,
 		                      AVDictionary** options) {
-    return errc{avformat_find_stream_info(ic, options)};
+    return detail::ffmpeg_code_to_result(avformat_find_stream_info(ic, options));
 }
 
 } // detail
@@ -50,12 +64,10 @@ Most importantly an AVFormatContext contains:
 
 */
 class format_context 
-    : public detail::unique_or_null<AVFormatContext,
-                                    detail::format_context_deleter> {
+    : public unique_or_null_format_ctx {
 
     public:
-    using base_type = detail::unique_or_null<AVFormatContext,
-                                             detail::format_context_deleter>;
+    using base_type = unique_or_null_format_ctx;
     
     // how useful is this without exposing functions
     //  around opening the context and finding streams
@@ -88,7 +100,7 @@ class format_context
         AVFormatContext* fctx = nullptr;
         detail::open_input(&fctx, url, nullptr, nullptr).value();
         this->reset(fctx);
-        this->find_stream_info(nullptr);
+        this->find_stream_info(nullptr).value();
     }
 
     result<void> find_stream_info(AVDictionary** options) {
@@ -97,7 +109,7 @@ class format_context
 
     // lighest weight easiest to misuse
     result<void> read_frame(AVPacket* pkt) noexcept {
-        return errc{av_read_frame(this->get(), pkt)};
+        return detail::ffmpeg_code_to_result(av_read_frame(this->get(), pkt));
     }
     // if the user wants to manage the packet themselves
     result<void> read_frame(packet& pkt) noexcept {
@@ -114,16 +126,6 @@ class format_context
     }
     // todo read frame should set the media type of the packet
     // other helper functions for working with the stream array in the format context
-
-    private:
-    result<base_type> alloc_format_ctx() {
-        auto ctx = avformat_alloc_context();
-        if (ctx) {
-            return base_type{ctx};
-        } else {
-            return errc::alloc_failure;
-        }
-    }
 };
 
 

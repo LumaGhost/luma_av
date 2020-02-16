@@ -26,8 +26,8 @@ struct format_context_deleter {
     }
 };
 
-using = unique_or_null_format_ctx = detail::unique_or_null<AVFormatContext, 
-                                                           detail::format_context_deleter>
+using unique_or_null_format_ctx = detail::unique_or_null<AVFormatContext, 
+                                                        detail::format_context_deleter>
 
 // todo static in cpp
 inline result<unique_or_null_format_ctx> alloc_format_ctx() {
@@ -35,11 +35,10 @@ inline result<unique_or_null_format_ctx> alloc_format_ctx() {
     if (ctx) {
         return unique_or_null_format_ctx{ctx};
     } else {
-        return errc::alloc_failure;
+        return luma::av::make_error_code(errc::alloc_failure);
     }
 }
 
-// todo i think functions like this can be replaced with macros
 inline result<void> open_input(AVFormatContext** ps, const char* url,
 		                AVInputFormat* fmt, AVDictionary** options) {
     return detail::ffmpeg_code_to_result(avformat_open_input(ps, url, fmt, options));
@@ -69,32 +68,11 @@ class format_context
     public:
     using base_type = unique_or_null_format_ctx;
     
-    // how useful is this without exposing functions
-    //  around opening the context and finding streams
     format_context() : base_type{alloc_format_ctx().value()} {
 
     }
 
-    // would like sv but null terminated
-    //  is const char* the next best thing?
-    // or std::string? const char* doesnt 
-    //  guarentee null terminated so is it even worth?
     /*
-    "Note that a user-supplied AVFormatContext will be freed on failure."
-        ive heard that this is pretty inconvenient for users.
-        maybe we can have a constructor that helps users 
-        have a more convenient way to deal with constructing
-        from an existing context
-    format options? avdictionary?
-    feel like anything to do with AVFormat directly the user
-        can use ffmpegs api? i dont think any of them are owning
-        and im pretty sure the likes of av_probe_input_format and company
-        are all for advanced use
-    good default to call find stream info for the user?
-    also this const char* constructor is based on the reader
-        side of the format context. in writing the "url" would
-        be where the new video or whatever will be saved
-        may need two separate format context types to avoid that confusion
     */
     format_context(const char* url) : base_type{nullptr} {
         AVFormatContext* fctx = nullptr;
@@ -117,15 +95,10 @@ class format_context
     }
     // if the user always wants a copy of the packet
     result<packet> read_frame() {
-        // packet should prob be a member
-        //  so we dont waste allocations when read frame fails
-        //  and it def will in real world network conditions
         auto pkt = packet{};
         LUMA_AV_OUTCOME_TRY(this->read_frame(pkt));
         return pkt;
     }
-    // todo read frame should set the media type of the packet
-    // other helper functions for working with the stream array in the format context
 };
 
 

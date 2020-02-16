@@ -28,7 +28,7 @@ using unique_or_null_frame = detail::unique_or_null<AVFrame, detail::frame_delet
 } // detail
 
 // todo static in cpp
-inline result<detail::unique_or_null_frame> checked_frame_alloc() {
+inline result<detail::unique_or_null_frame> checked_frame_alloc() noexcept {
     auto* frame = av_frame_alloc();
     if (frame) {
         return detail::unique_or_null_frame{frame};
@@ -47,7 +47,8 @@ class basic_frame : public detail::unique_or_null_frame {
     using base_type::get;
     public:
 
-    basic_frame() : base_type{checked_frame_alloc().value()} {}
+    basic_frame() noexcept(luma::av::noexcept_novalue) 
+        : base_type{checked_frame_alloc().value()} {}
 
     /**
      * does a deep copy of the frame, validates the invariant with a contract.
@@ -58,8 +59,8 @@ class basic_frame : public detail::unique_or_null_frame {
     basic_frame(const basic_frame&) = delete;
     basic_frame& operator=(const basic_frame&) = delete;
 
-    basic_frame(basic_frame&& other) = default;
-    basic_frame& operator=(basic_frame&& other) = default;
+    basic_frame(basic_frame&& other) noexcept = default;
+    basic_frame& operator=(basic_frame&& other) noexcept = default;
 
 
     int64_t best_effort_timestamp() const noexcept {
@@ -87,7 +88,7 @@ class basic_frame : public detail::unique_or_null_frame {
         return this->get()->format;
     }
 
-    result<void> alloc_buffers(int width, int height, int format) {
+    result<void> alloc_buffers(int width, int height, int format) noexcept {
         av_frame_unref(this->get());
         this->get()->width = width;
         this->get()->height = height;
@@ -95,17 +96,17 @@ class basic_frame : public detail::unique_or_null_frame {
         return detail::ffmpeg_code_to_result(av_frame_get_buffer(this->get(), alignment));
     }
 
-    int num_planes() const {
+    int num_planes() const noexcept {
         auto result = int{av_pix_fmt_count_planes(this->get()->format)};
         return result;
     }
 
-    uint8_t* data(int idx) const {
+    uint8_t* data(int idx) const noexcept(luma::av::noexcept_contracts) {
         assert(idx > 0 && idx < num_planes());
         return this->get()->data[idx];
     }
 
-    int linesize(int idx) const {
+    int linesize(int idx) const noexcept(luma::av::noexcept_contracts) {
         assert(idx > 0 && idx < num_planes());
         return this->get()->linesize[idx];
     }
@@ -114,14 +115,14 @@ class basic_frame : public detail::unique_or_null_frame {
 using frame = basic_frame<32>;
 
 template <int align>
-result<void> is_writable(basic_frame<align>& f) {
+result<void> is_writable(basic_frame<align>& f) noexcept {
     // why isnt this const?
     auto ec = av_frame_is_writable(f.get());
     return detail::ffmpeg_code_to_result(ec);
 }
 
 template <int align>
-inline result<void> make_writable(basic_frame<align>& f) {
+result<void> make_writable(basic_frame<align>& f) noexcept {
     auto ec = av_frame_make_writable(f.get());
     return detail::ffmpeg_code_to_result(ec);
 }
@@ -132,7 +133,7 @@ result<void> copy_frame_props(basic_frame<align1>& dst, const basic_frame<align2
 }
 
 template <int align>
-result<void> copy_frame(basic_frame<align>& dst, const basic_frame<align>& src) {
+result<void> copy_frame(basic_frame<align>& dst, const basic_frame<align>& src) noexcept {
     LUMA_AV_OUTCOME_TRY(luma::av::copy_frame_props(dst, src));
     auto ec = av_frame_get_buffer(dst.get(), align);
     return detail::ffmpeg_code_to_result(ec);

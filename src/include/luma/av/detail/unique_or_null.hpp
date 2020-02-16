@@ -24,7 +24,7 @@ class unique_or_null {
     /**
      * construct from raw owning ptr
      */
-    unique_or_null(T* ptr) : ptr_{ptr} {}
+    unique_or_null(T* ptr) noexcept : ptr_{ptr} {}
 
     unique_or_null& operator=(std::nullptr_t) noexcept {
         ptr_ = nullptr;

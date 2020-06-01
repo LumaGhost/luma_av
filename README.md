@@ -1,4 +1,5 @@
 # luma_av
+still working on initial ideas and conception. not an actual library yet.
 ## Clangd set up
 - The update alternatives command isnt being run in the dockerfile so 
 you need to tell the vscode-clangd plugin where the clangd-7 executable is.

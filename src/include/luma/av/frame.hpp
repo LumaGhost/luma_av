@@ -53,7 +53,7 @@ class basic_frame : public detail::unique_or_null_frame {
     /**
      * does a deep copy of the frame, validates the invariant with a contract.
      */
-    explicit basic_frame(const AVFrame*);
+    explicit basic_frame(const AVFrame*) noexcept(luma::av::noexcept_novalue && luma::av::noexcept_contracts);
 
     // we can write them but i think implict copy is too expensive to be implicit
     basic_frame(const basic_frame&) = delete;

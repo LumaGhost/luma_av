@@ -18,26 +18,26 @@ namespace av {
 
 namespace detail {
 
-inline result<void> make_buffer_writable(AVBufferRef** buffy) {
+inline result<void> make_buffer_writable(AVBufferRef** buffy) noexcept {
     return detail::ffmpeg_code_to_result(av_buffer_make_writable(buffy));
 }
 
-inline result<void> packet_copy_props(AVPacket* dst, const AVPacket* src) {
+inline result<void> packet_copy_props(AVPacket* dst, const AVPacket* src) noexcept {
     return detail::ffmpeg_code_to_result(av_packet_copy_props(dst, src));
 }
 
-inline result<void> packet_ref(AVPacket* src, const AVPacket* dst) {
+inline result<void> packet_ref(AVPacket* src, const AVPacket* dst) noexcept {
     return detail::ffmpeg_code_to_result(av_packet_ref(src, dst));
 }
 
-inline result<void> make_packet_writable(AVPacket* pkt) {
+inline result<void> make_packet_writable(AVPacket* pkt) noexcept {
     // then can i just do this and be good?
     LUMA_AV_OUTCOME_TRY(make_buffer_writable(&pkt->buf));
     return luma::av::outcome::success();
 }
 
 // i think this is a fully deep copy with unique ownership
-inline result<void> packet_copy(AVPacket* dst, const AVPacket* src) {
+inline result<void> packet_copy(AVPacket* dst, const AVPacket* src) noexcept {
     LUMA_AV_OUTCOME_TRY(packet_copy_props(dst, src));
     LUMA_AV_OUTCOME_TRY(packet_ref(dst, src));
     LUMA_AV_OUTCOME_TRY(make_buffer_writable(&dst->buf));
@@ -60,7 +60,7 @@ using unique_or_null_packet = detail::unique_or_null<AVPacket, packet_deleter>;
     *  avpacket init performs additional initialization beyond what av packet alloc does
     *  https://ffmpeg.org/doxygen/3.2/avpacket_8c_source.html#l00033
     */
-inline result<unique_or_null_packet> alloc_packet() {
+inline result<unique_or_null_packet> alloc_packet() noexcept {
     auto pkt = av_packet_alloc();
     if (pkt) {
         av_init_packet(pkt);
@@ -70,7 +70,7 @@ inline result<unique_or_null_packet> alloc_packet() {
     }
 }
 
-inline result<void> new_packet(AVPacket* pkt, int size) {
+inline result<void> new_packet(AVPacket* pkt, int size) noexcept {
     return detail::ffmpeg_code_to_result(av_new_packet(pkt, size));
 }
 
@@ -82,24 +82,27 @@ class packet : public detail::unique_or_null_packet {
 
     using base_type = detail::unique_or_null_packet;
 
-    packet() : base_type{detail::alloc_packet().value()}{
+    packet() noexcept(luma::av::noexcept_novalue) 
+        : base_type{detail::alloc_packet().value()}{
 
     }
 
     // strong type?
-    explicit packet(int size) : packet{} {
+    explicit packet(int size) noexcept(luma::av::noexcept_novalue)
+     : packet{} {
         detail::new_packet(this->get(), size).value();
     }
 
-    explicit packet(const AVPacket* pkt) : packet{} {
+    explicit packet(const AVPacket* pkt) noexcept(luma::av::noexcept_novalue)
+     : packet{} {
         detail::packet_copy(this->get(), pkt).value();
     }
 
     packet(const packet&) = delete;
     packet& operator=(const packet&) = delete;
 
-    packet(packet&&) = default;
-    packet& operator=(packet&&) = default;
+    packet(packet&&) noexcept = default;
+    packet& operator=(packet&&) noexcept = default;
 
 };
 

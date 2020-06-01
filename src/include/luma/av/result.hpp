@@ -100,7 +100,7 @@ inline result<void> ffmpeg_code_to_result(int ffmpeg_code) noexcept {
   }
 }
 
-}
+} // detail
 
 } // av
 } // luma

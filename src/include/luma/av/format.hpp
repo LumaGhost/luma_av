@@ -30,7 +30,7 @@ using unique_or_null_format_ctx = detail::unique_or_null<AVFormatContext,
                                                         detail::format_context_deleter>
 
 // todo static in cpp
-inline result<unique_or_null_format_ctx> alloc_format_ctx() {
+inline result<unique_or_null_format_ctx> alloc_format_ctx() noexcept {
     auto ctx = avformat_alloc_context();
     if (ctx) {
         return unique_or_null_format_ctx{ctx};
@@ -40,12 +40,12 @@ inline result<unique_or_null_format_ctx> alloc_format_ctx() {
 }
 
 inline result<void> open_input(AVFormatContext** ps, const char* url,
-		                AVInputFormat* fmt, AVDictionary** options) {
+		                AVInputFormat* fmt, AVDictionary** options) noexcept {
     return detail::ffmpeg_code_to_result(avformat_open_input(ps, url, fmt, options));
 } 	
 
 inline result<void> find_stream_info(AVFormatContext* ic,
-		                      AVDictionary** options) {
+		                      AVDictionary** options) noexcept {
     return detail::ffmpeg_code_to_result(avformat_find_stream_info(ic, options));
 }
 
@@ -68,20 +68,22 @@ class format_context
     public:
     using base_type = unique_or_null_format_ctx;
     
-    format_context() : base_type{alloc_format_ctx().value()} {
+    format_context() noexcept(luma::av::noexcept_novalue) 
+        : base_type{alloc_format_ctx().value()} {
 
     }
 
     /*
     */
-    format_context(const char* url) : base_type{nullptr} {
+    format_context(const char* url) noexcept(luma::av::noexcept_novalue)
+     : base_type{nullptr} {
         AVFormatContext* fctx = nullptr;
         detail::open_input(&fctx, url, nullptr, nullptr).value();
         this->reset(fctx);
         this->find_stream_info(nullptr).value();
     }
 
-    result<void> find_stream_info(AVDictionary** options) {
+    result<void> find_stream_info(AVDictionary** options) noexcept {
         return detail::find_stream_info(this->get(), options);
     }
 
@@ -94,7 +96,7 @@ class format_context
         return this->read_frame(this->get());
     }
     // if the user always wants a copy of the packet
-    result<packet> read_frame() {
+    result<packet> read_frame() noexcept(luma::av::noexcept_novalue) {
         auto pkt = packet{};
         LUMA_AV_OUTCOME_TRY(this->read_frame(pkt));
         return pkt;

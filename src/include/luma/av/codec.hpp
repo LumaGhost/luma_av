@@ -24,7 +24,7 @@ namespace av {
 
 namespace detail {
 
-inline result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
+inline result<const AVCodec*> codec_error_handling(const AVCodec* codec) noexcept {
     if (codec) {
         return codec;
     } else {
@@ -34,12 +34,12 @@ inline result<const AVCodec*> codec_error_handling(const AVCodec* codec) {
 }
 
 // overload set since its c++ and we can do that
-inline result<const AVCodec*> find_decoder(enum AVCodecID id) {
+inline result<const AVCodec*> find_decoder(enum AVCodecID id) noexcept {
     const AVCodec* codec = avcodec_find_decoder(id);
     return codec_error_handling(codec);
 }
 // think ffmpeg is expecting null terminated, so no sv here :/
-inline result<const AVCodec*> find_decoder(const std::string& name) {
+inline result<const AVCodec*> find_decoder(const std::string& name) noexcept {
     const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
     return codec_error_handling(codec);
 }
@@ -67,36 +67,39 @@ class codec {
     public:
 
     // automatically throws. use the free function to handle yourself
-    explicit codec(enum AVCodecID id) : codec_{detail::find_decoder(id).value()} {
+    explicit codec(enum AVCodecID id) noexcept(luma::av::noexcept_novalue) 
+     : codec_{detail::find_decoder(id).value()} {
 
     }
 
-    explicit codec(const std::string& name) : codec_{detail::find_decoder(name).value()} {
+    explicit codec(const std::string& name) noexcept(luma::av::noexcept_novalue) 
+    : codec_{detail::find_decoder(name).value()} {
 
     }
 
     // contract that codec isnt null
-    explicit codec(const AVCodec* codec) : codec_{codec} {
-
+    explicit codec(const AVCodec* codec) noexcept(luma::av::noexcept_contracts)
+     : codec_{codec} {
+        assert(codec_);
     }
 
     auto get() const noexcept -> const AVCodec* {
         return codec_;
     }
 
-    codec(const codec&) = default;
-    codec& operator=(const codec&) = default;
+    codec(const codec&) noexcept = default;
+    codec& operator=(const codec&) noexcept = default;
 
     private:
         const AVCodec* codec_;
 };
 
 // if people want to use the error code api
-inline result<codec> find_decoder(enum AVCodecID id) {
+inline result<codec> find_decoder(enum AVCodecID id) noexcept {
     LUMA_AV_OUTCOME_TRY(codec_ptr, detail::find_decoder(id));
     return codec{codec_ptr};
 }
-inline result<codec> find_decoder(const std::string& name) {
+inline result<codec> find_decoder(const std::string& name) noexcept {
     LUMA_AV_OUTCOME_TRY(codec_ptr, detail::find_decoder(name));
     return codec{codec_ptr};
 }
@@ -111,33 +114,35 @@ class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail
     //  i didnt need it in the tests. i forget the rules
     using base_type::get;
 
-    codec_parameters() : base_type{alloc_codec_par().value()} {
+    codec_parameters() noexcept(luma::av::noexcept_novalue)
+    : base_type{alloc_codec_par().value()} {
     }
 
-    codec_parameters(const AVCodecParameters* par) 
+    codec_parameters(const AVCodecParameters* par) noexcept(luma::av::noexcept_novalue) 
         : base_type{alloc_codec_par().value()} {
         copy_par(this->get(), par).value();
     }
 
-    codec_parameters(const codec_parameters& other) : base_type{alloc_codec_par().value()} {
+    codec_parameters(const codec_parameters& other) noexcept(luma::av::noexcept_novalue) 
+    : base_type{alloc_codec_par().value()} {
         copy_par(this->get(), other.get()).value();
     }
 
-    codec_parameters& operator=(const codec_parameters& other) {
+    codec_parameters& operator=(const codec_parameters& other) noexcept(luma::av::noexcept_novalue)  {
         // think this is all you need. it should completely overwrite
         //  the first codec par with the second
         copy_par(this->get(), other.get()).value();
         return *this;
     }
 
-    codec_parameters(codec_parameters&&) = default;
-    codec_parameters& operator=(codec_parameters&&) = default;
+    codec_parameters(codec_parameters&&) noexcept = default;
+    codec_parameters& operator=(codec_parameters&&) noexcept = default;
 
 
     private:
     // prob all static in the cpp eventually?
     //  something less visible than private functions
-    result<base_type> alloc_codec_par() {
+    result<base_type> alloc_codec_par() noexcept {
         auto par =  avcodec_parameters_alloc();
         if (par) {
             return base_type{par};
@@ -145,7 +150,7 @@ class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail
             return errc::alloc_failure;
         }
     }
-    result<void> copy_par(AVCodecParameters* out_par, const AVCodecParameters* par) {
+    result<void> copy_par(AVCodecParameters* out_par, const AVCodecParameters* par) noexcept {
         return detail::ffmpeg_code_to_result(avcodec_parameters_copy(out_par, par));
     }
 };
@@ -156,12 +161,12 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     using base_type = detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>;
     using base_type::get;
 
-    explicit codec_context(const codec& codec) 
+    explicit codec_context(const codec& codec) noexcept(luma::av::noexcept_novalue) 
         : base_type{alloc_context(codec).value()}, codec_{codec.get()}{
 
     }
 
-    explicit codec_context(const codec& codec, const codec_parameters& par) 
+    explicit codec_context(const codec& codec, const codec_parameters& par) noexcept(luma::av::noexcept_novalue) 
         : codec_context{codec} {
         codec_ctx_from_par(this->get(), par.get()).value();
     }
@@ -169,14 +174,14 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     codec_context(const codec_context&) = delete;
     codec_context& operator=(const codec_context&) = delete;
 
-    result<codec_parameters> codec_par() const {
+    result<codec_parameters> codec_par() const noexcept(luma::av::noexcept_novalue)  {
         auto par = codec_parameters{};
         LUMA_AV_OUTCOME_TRY(codec_par_from_ctx(par.get(), this->get()));
         return par;
     }
 
 
-    result<void> open(AVDictionary**  options) {
+    result<void> open(AVDictionary**  options) noexcept {
         auto ec = avcodec_open2(this->get(), codec_, options);
         return detail::ffmpeg_code_to_result(ec);
     }
@@ -197,41 +202,41 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         on the same AVCodecContext. It will return unexpected results
          now or in future libavcodec versions."
     */
-    result<void> send_packet(const AVPacket* p) {
+    result<void> send_packet(const AVPacket* p) noexcept {
         auto ec = avcodec_send_packet(this->get(), p);
         return detail::ffmpeg_code_to_result(ec);
     }
 
     // convenience overload for our own packet
-    result<void> send_packet(const packet& p) {
+    result<void> send_packet(const packet& p) noexcept {
         return this->send_packet(p.get());
     }
 
-    result<void> send_frame(const AVFrame* f) {
+    result<void> send_frame(const AVFrame* f) noexcept {
         auto ec = avcodec_send_frame(this->get(), f);
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    result<void> recieve_frame(AVFrame* frame) {
+    result<void> recieve_frame(AVFrame* frame) noexcept {
         auto ec = avcodec_receive_frame(this->get(), frame);
         return detail::ffmpeg_code_to_result(ec);
     }
-    result<void> recieve_frame(frame& frame) {
+    result<void> recieve_frame(frame& frame) noexcept {
         auto ec = avcodec_receive_frame(this->get(), frame.get());
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    result<void> recieve_packet(packet& p) {
+    result<void> recieve_packet(packet& p) noexcept {
         auto ec = avcodec_receive_packet(this->get(), p.get());
         return detail::ffmpeg_code_to_result(ec);
     }
-    result<void> recieve_packet(AVPacket* p) {
+    result<void> recieve_packet(AVPacket* p) noexcept {
         auto ec = avcodec_receive_packet(this->get(), p);
         return detail::ffmpeg_code_to_result(ec);
     }
 
     // convenience to go from packet to frame in one call
-    result<frame> decode(const AVPacket* p) {
+    result<frame> decode(const AVPacket* p) noexcept(luma::av::noexcept_novalue && luma::av::noexcept_contracts) {
         LUMA_AV_OUTCOME_TRY(this->send_packet(p));
         LUMA_AV_OUTCOME_TRY(this->recieve_frame(decoder_frame_));
         return frame{decoder_frame_.get()};
@@ -240,7 +245,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
 
     // same frame overloads from send_frame would
     //  be supported here
-    result<packet> encode(const AVFrame* f) {
+    result<packet> encode(const AVFrame* f) noexcept(luma::av::noexcept_novalue) {
         LUMA_AV_OUTCOME_TRY(this->send_frame(f));
         LUMA_AV_OUTCOME_TRY(this->recieve_packet(encoder_packet_));
         return packet{encoder_packet_.get()};
@@ -248,7 +253,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
 
     private:
     // static in cpp
-    result<base_type> alloc_context(const codec& codec) {
+    result<base_type> alloc_context(const codec& codec) noexcept {
         auto ctx = avcodec_alloc_context3(codec.get());
         if (ctx) {
             return base_type{ctx};
@@ -257,10 +262,10 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
             return errc::alloc_failure;
         }
     }
-    result<void> codec_par_from_ctx(AVCodecParameters* par, const AVCodecContext* ctx) const {
+    result<void> codec_par_from_ctx(AVCodecParameters* par, const AVCodecContext* ctx) const noexcept {
         return detail::ffmpeg_code_to_result(avcodec_parameters_from_context(par, ctx));
     }
-    result<void> codec_ctx_from_par(AVCodecContext* ctx, const AVCodecParameters* par) const {
+    result<void> codec_ctx_from_par(AVCodecContext* ctx, const AVCodecParameters* par) const noexcept {
         return detail::ffmpeg_code_to_result(avcodec_parameters_to_context(ctx, par));
     }
     const AVCodec* codec_ = nullptr; 

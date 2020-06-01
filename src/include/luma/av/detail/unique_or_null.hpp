@@ -33,8 +33,8 @@ class unique_or_null {
 
     unique_or_null(const unique_or_null&) = delete;
     unique_or_null& operator=(const unique_or_null&) = delete;
-    unique_or_null(unique_or_null&&) = default;
-    unique_or_null& operator=(unique_or_null&&) = default;
+    unique_or_null(unique_or_null&&) noexcept = default;
+    unique_or_null& operator=(unique_or_null&&) noexcept = default;
 
     explicit operator bool() const noexcept {
         return bool{ptr_};

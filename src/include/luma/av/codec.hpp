@@ -267,7 +267,7 @@ class Encoder {
     Encoder(codec_context ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
     public:
     // more ctors soonTM pass ur own packet or something
-    result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) {
+    result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Encoder{std::move(ctx), std::move(pkt)};
@@ -313,7 +313,7 @@ this function only handles the encoding algorithm
 i would ideally like to reuse this algo
 */
 template <class InputIt, class EndIt, class OutputIt>
-result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt packet_out) {
+result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt packet_out) noexcept {
     for (auto it = frame_begin; it != frame_end; ++it) {
         LUMA_AV_OUTCOME_TRY(enc.send_frame(*it));
         if (auto res = enc.recieve_packet()) {
@@ -329,7 +329,7 @@ result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt
 }
 
 template <class InputIt, class EndIt, class OutputIt>
-result<void> Drain(Encoder& enc, OutputIt packet_out) {
+result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
     LUMA_AV_OUTCOME_TRY(enc.start_draining());
     while (true) {
         if (auto res = enc.recieve_packet()) {

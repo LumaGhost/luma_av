@@ -162,7 +162,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     using base_type::get;
 
     explicit codec_context(const codec& codec) noexcept(luma::av::noexcept_novalue) 
-        : base_type{alloc_context(codec).value()}, codec_{codec.get()}, encoder_packet_{packet::make().value()} {
+        : base_type{alloc_context(codec).value()}, codec_{codec.get()} {
 
     }
 
@@ -173,6 +173,8 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
 
     codec_context(const codec_context&) = delete;
     codec_context& operator=(const codec_context&) = delete;
+    codec_context(codec_context&&) noexcept = default;
+    codec_context& operator=(codec_context&&) noexcept = default;
 
     result<codec_parameters> codec_par() const noexcept(luma::av::noexcept_novalue)  {
         auto par = codec_parameters{};
@@ -216,7 +218,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
 
     private:
     // static in cpp
-    result<base_type> alloc_context(const codec& codec) noexcept {
+    result<base_type> alloc_context(const av::codec& codec) noexcept {
         auto ctx = avcodec_alloc_context3(codec.get());
         if (ctx) {
             return base_type{ctx};
@@ -281,7 +283,7 @@ class Encoder {
     // more formally: passing nullptr to send_packet/send_frame is not guarenteed to drain
     //  use these functions to drain
     result<void> start_draining() noexcept {
-        auto ec = avcodec_send_frame(ctx.get(), nullptr);
+        auto ec = avcodec_send_frame(ctx_.get(), nullptr);
         return detail::ffmpeg_code_to_result(ec);
     }
     
@@ -294,17 +296,17 @@ class Encoder {
         return detail::ffmpeg_code_to_result(ec);
     }
     // if the user doesnt want their own packet after encoding the frame
-    packet& packet() noexcept {
+    packet& view_packet() noexcept {
         return encoder_packet_;
     }
     // if they do want their own packet
     result<packet> ref_packet() noexcept {
-        return packet::make(encoder_packet_.get(), shallow_copy);
+        return packet::make(encoder_packet_.get(), packet::shallow_copy);
     }
     private:
-    packet encoder_packet_;
     codec_context ctx_;
-}
+    packet encoder_packet_;
+};
 
 /**
 like this approach a lot because the user gets control over all of the memory.
@@ -322,7 +324,7 @@ result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt
         } else if (res.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else {
-            return luma::av::outcome::failure(res);
+            return luma::av::outcome::failure(res.error());
         }
     }
     return luma::av::outcome::success();
@@ -338,7 +340,7 @@ result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
         } else if (res.error().value() == AVERROR_EOF) {
             return luma::av::outcome::success();
         } else {
-            return luma::av::outcome::failure(res);
+            return luma::av::outcome::failure(res.error());
         }
     }
 }

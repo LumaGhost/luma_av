@@ -1,4 +1,4 @@
-FROM gcc:9.2
+FROM gcc:10.2
 
 RUN apt update && apt install -y \
     python3-pip \

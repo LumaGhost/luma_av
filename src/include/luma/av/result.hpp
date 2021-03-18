@@ -92,7 +92,7 @@ inline constexpr auto noexcept_contracts = false;
 
 namespace detail {
 
-inline result<void> ffmpeg_code_to_result(int ffmpeg_code) noexcept {
+inline result<void> as_result(int ffmpeg_code) noexcept {
   if (ffmpeg_code == 0) {
     return luma::av::outcome::success();
   } else {
@@ -100,7 +100,26 @@ inline result<void> ffmpeg_code_to_result(int ffmpeg_code) noexcept {
   }
 }
 
+inline result<void> ffmpeg_code_to_result(int ffmpeg_code) noexcept {
+  return detail::as_result(ffmpeg_code);
+}
+
 } // detail
+
+#define LUMA_AV_OUTCOME_TRY_FF(statement) \
+LUMA_AV_OUTCOME_TRY(std::invoke([&]()->luma::av::result<void> {  \
+    return luma::av::detail::ffmpeg_code_to_result(statement);  \
+})) 
+/**
+and if u want the result for some reason i say just call ffmpeg_code_to_result urself
+i dont like the boilerplate of always having to make a function just to wrap that. 
+the try macro helps a lot. and for other scenarios i think the function is fine. not even
+a macro can simplify that for u. we could make the name shorter though lmao. like just as_result
+i like this approach over always making wrappers cause it saves a lot of function boilerplate
+(not just to write but to understand and mantain. esp when theyre all actually doing the samet hing)
+but also cause the ffmpeg call is more direct
+*/
+
 
 } // av
 } // luma

@@ -15,87 +15,74 @@ extern "C" {
 namespace luma {
 namespace av {
 
+class packet {
 
-namespace detail {
+    struct packet_deleter {
+        void operator()(AVPacket* pkt) const noexcept {
+            av_packet_free(&pkt);
+            // looks like this is deprecated and av_packet_unref is the 
+            //  one we should use instead?
+        }
+    };
+    using This = packet;
+    using unique_pkt = std::unique_ptr<AVPacket, packet_deleter>;
 
-inline result<void> make_buffer_writable(AVBufferRef** buffy) noexcept {
-    return detail::ffmpeg_code_to_result(av_buffer_make_writable(buffy));
-}
-
-inline result<void> packet_copy_props(AVPacket* dst, const AVPacket* src) noexcept {
-    return detail::ffmpeg_code_to_result(av_packet_copy_props(dst, src));
-}
-
-inline result<void> packet_ref(AVPacket* src, const AVPacket* dst) noexcept {
-    return detail::ffmpeg_code_to_result(av_packet_ref(src, dst));
-}
-
-inline result<void> make_packet_writable(AVPacket* pkt) noexcept {
-    // then can i just do this and be good?
-    LUMA_AV_OUTCOME_TRY(make_buffer_writable(&pkt->buf));
-    return luma::av::outcome::success();
-}
-
-// i think this is a fully deep copy with unique ownership
-inline result<void> packet_copy(AVPacket* dst, const AVPacket* src) noexcept {
-    LUMA_AV_OUTCOME_TRY(packet_copy_props(dst, src));
-    LUMA_AV_OUTCOME_TRY(packet_ref(dst, src));
-    LUMA_AV_OUTCOME_TRY(make_buffer_writable(&dst->buf));
-    return luma::av::outcome::success();
-}
-
-struct packet_deleter {
-    void operator()(AVPacket* pkt) const noexcept {
-        av_packet_free(&pkt);
-        // looks like this is deprecated and av_packet_unref is the 
-        //  one we should use instead?
-    }
-};
-
-using unique_or_null_packet = detail::unique_or_null<AVPacket, packet_deleter>;
-
-// todo static in cpp
 /**
     * allocaate a new packet with avpacket alloc, call avpacket init on the resulting packet
     *  avpacket init performs additional initialization beyond what av packet alloc does
     *  https://ffmpeg.org/doxygen/3.2/avpacket_8c_source.html#l00033
     */
-inline result<unique_or_null_packet> alloc_packet() noexcept {
-    auto pkt = av_packet_alloc();
-    if (pkt) {
-        av_init_packet(pkt);
-        return unique_or_null_packet{pkt};
-    } else {
-        return luma::av::make_error_code(errc::alloc_failure);
+    static result<unique_pkt> alloc_packet() noexcept {
+        auto pkt = av_packet_alloc();
+        if (pkt) {
+            av_init_packet(pkt);
+            return unique_pkt{pkt};
+        } else {
+            return luma::av::make_error_code(errc::alloc_failure);
+        }
     }
-}
 
-inline result<void> new_packet(AVPacket* pkt, int size) noexcept {
-    return detail::ffmpeg_code_to_result(av_new_packet(pkt, size));
-}
+    unique_pkt pkt_;
 
-} // detail
+    packet(AVPacket* pkt) noexcept : pkt_{pkt} {
 
-class packet : public detail::unique_or_null_packet {
+    }
 
     public:
 
-    using base_type = detail::unique_or_null_packet;
-
-    packet() noexcept(luma::av::noexcept_novalue) 
-        : base_type{detail::alloc_packet().value()}{
-
+    static result<packet> make() noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, alloc_packet());
+        return packet{pkt.release()};
     }
 
-    // strong type?
-    explicit packet(int size) noexcept(luma::av::noexcept_novalue)
-     : packet{} {
-        detail::new_packet(this->get(), size).value();
+    static result<packet> make(int size) noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, This::make());
+        LUMA_AV_OUTCOME_TRY_FF(av_new_packet(pkt.pkt_.get(), size));
+        // we're actually calling the result ctor here so we need to move
+        //  otherwise it tries to find copy (and fails)
+        return std::move(pkt);
     }
 
-    explicit packet(const AVPacket* pkt) noexcept(luma::av::noexcept_novalue)
-     : packet{} {
-        detail::packet_copy(this->get(), pkt).value();
+    /**
+    not sure how the invariant will work out yet but i rly want to support shalow copies. thats a huge
+    optimization i feel like itd be untrue to the lib to leave it off the table. that said
+    i def want an api thats clear abt shalow or deep copy and allows the user to know explicitly if 
+    theyre creating/having a writable packet or not. 
+    i wanted to keep the names uniformly "make" so at that point a tag type helps disambiguate
+    */
+    struct shallow_copy_t {};
+    static constexpr auto shallow_copy = shallow_copy_t{}; 
+    static result<packet> make(const AVPacket* in_pkt, shallow_copy_t) noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, This::make());
+        LUMA_AV_OUTCOME_TRY_FF(av_packet_copy_props(pkt.pkt_.get(), in_pkt));
+        LUMA_AV_OUTCOME_TRY_FF(av_packet_ref(pkt.pkt_.get(), in_pkt));
+        return std::move(pkt);
+    }
+
+    static result<packet> make(const AVPacket* in_pkt) noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, This::make(in_pkt, shallow_copy));
+        LUMA_AV_OUTCOME_TRY_FF(av_buffer_make_writable(&pkt.pkt_->buf));
+        return std::move(pkt);
     }
 
     packet(const packet&) = delete;
@@ -103,6 +90,23 @@ class packet : public detail::unique_or_null_packet {
 
     packet(packet&&) noexcept = default;
     packet& operator=(packet&&) noexcept = default;
+
+    /**
+    maybe change the name. but for now a tiny amnt of code uses this so im keeping it for now
+    to me this is potentially a "trait". in the general software sense just something abt a group of types
+    thats intentionally the same ability. e.g. in this case the ability return the underlying raw ptr
+    in the c++ sense thats a concept. no need to derive or use virtual or anyhing :puke: just implement
+    some functionality with a standard interface (:
+    or we could leave it up to the individual classes
+    */
+    AVPacket* get() noexcept {
+        return pkt_.get();
+    }
+
+    const AVPacket* get() const noexcept {
+        return pkt_.get();
+    }
+
 
 };
 

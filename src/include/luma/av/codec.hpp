@@ -162,7 +162,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     using base_type::get;
 
     explicit codec_context(const codec& codec) noexcept(luma::av::noexcept_novalue) 
-        : base_type{alloc_context(codec).value()}, codec_{codec.get()}{
+        : base_type{alloc_context(codec).value()}, codec_{codec.get()}, encoder_packet_{packet::make().value()} {
 
     }
 
@@ -243,12 +243,19 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     }
     // overload for luma av packet
 
+    /**
+    idk if i should return a shalow packet here but i would default to that cause u can
+    always make it writable if u want. but that can be risky/unclear potentially so it depends
+    but i realised like this function doesnt even rly make sense cause u dont call the decoding api
+    like this anyway. im gona do shalow but honestly plan on deleting this function?
+    this operation is a range operation
+    */
     // same frame overloads from send_frame would
     //  be supported here
-    result<packet> encode(const AVFrame* f) noexcept(luma::av::noexcept_novalue) {
+    result<packet> encode(const AVFrame* f) noexcept {
         LUMA_AV_OUTCOME_TRY(this->send_frame(f));
         LUMA_AV_OUTCOME_TRY(this->recieve_packet(encoder_packet_));
-        return packet{encoder_packet_.get()};
+        return packet::make(encoder_packet_.get(), packet::shallow_copy);
     }
 
     private:

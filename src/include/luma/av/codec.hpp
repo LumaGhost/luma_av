@@ -181,18 +181,6 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     }
 
 
-    result<void> open(AVDictionary**  options) noexcept {
-        auto ec = avcodec_open2(this->get(), codec_, options);
-        return detail::ffmpeg_code_to_result(ec);
-    }
-
-    bool is_open() const noexcept {
-        // this is ffmpegs implementation
-        //  idk why this function isnt const
-        // https://ffmpeg.org/doxygen/3.2/group__lavc__misc.html#ga906dda732e79eac12067c6d7ea19b630
-        return !!this->get()->internal;
-    }
-
     /*
     warning:
     "The input buffer, avpkt->data must be AV_INPUT_BUFFER_PADDING_SIZE 
@@ -212,11 +200,6 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         return this->send_packet(p.get());
     }
 
-    result<void> send_frame(const AVFrame* f) noexcept {
-        auto ec = avcodec_send_frame(this->get(), f);
-        return detail::ffmpeg_code_to_result(ec);
-    }
-
     result<void> recieve_frame(AVFrame* frame) noexcept {
         auto ec = avcodec_receive_frame(this->get(), frame);
         return detail::ffmpeg_code_to_result(ec);
@@ -226,37 +209,10 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    result<void> recieve_packet(packet& p) noexcept {
-        auto ec = avcodec_receive_packet(this->get(), p.get());
-        return detail::ffmpeg_code_to_result(ec);
-    }
-    result<void> recieve_packet(AVPacket* p) noexcept {
-        auto ec = avcodec_receive_packet(this->get(), p);
-        return detail::ffmpeg_code_to_result(ec);
+    const AVCodec* codec() const noexcept {
+        return codec_;
     }
 
-    // convenience to go from packet to frame in one call
-    result<frame> decode(const AVPacket* p) noexcept(luma::av::noexcept_novalue && luma::av::noexcept_contracts) {
-        LUMA_AV_OUTCOME_TRY(this->send_packet(p));
-        LUMA_AV_OUTCOME_TRY(this->recieve_frame(decoder_frame_));
-        return frame{decoder_frame_.get()};
-    }
-    // overload for luma av packet
-
-    /**
-    idk if i should return a shalow packet here but i would default to that cause u can
-    always make it writable if u want. but that can be risky/unclear potentially so it depends
-    but i realised like this function doesnt even rly make sense cause u dont call the decoding api
-    like this anyway. im gona do shalow but honestly plan on deleting this function?
-    this operation is a range operation
-    */
-    // same frame overloads from send_frame would
-    //  be supported here
-    result<packet> encode(const AVFrame* f) noexcept {
-        LUMA_AV_OUTCOME_TRY(this->send_frame(f));
-        LUMA_AV_OUTCOME_TRY(this->recieve_packet(encoder_packet_));
-        return packet::make(encoder_packet_.get(), packet::shallow_copy);
-    }
 
     private:
     // static in cpp
@@ -276,9 +232,116 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         return detail::ffmpeg_code_to_result(avcodec_parameters_to_context(ctx, par));
     }
     const AVCodec* codec_ = nullptr; 
-    frame decoder_frame_;
-    packet encoder_packet_;
+    // frame decoder_frame_;
+    // packet encoder_packet_;
 };
+
+// not sure if i want the packet/frame workspace to be part of the class yet
+// on one hand u inevitably need that to encode/decode. on the other there is more
+//  than one way to manage that workspace. meanwhile passing around both
+//  the ctx and the workspace can be a pain if ur always forced to do that. 
+// u can try supporting both too. there are a lot of options. 
+// in the end i think u need the option to contain one in the class
+//  and at that point we should have some distinction from encoder and deocder
+//  so we dont have to deal with 4 combinations of states or allocate workspaces we dont need
+// for now sticking with out
+/**
+i think the codec context can be a detail class at this point?
+then the user uses the encoder and decoder. 
+alternatively (cause i think theres use in sparating a "codec info" class from "encode/decode state")
+we could make the contexr pre decoding. then u open that and end up with either an opened encoder or decoder
+tbh i kinda like that a lot better. i like clarity on opened/unopened. cause theyre two separate states
+and they even have separate apis in a way. at least the opened has an additional api.
+also i dont think u can sumultaneously be an encoder and decoder with the same context (although u dont
+care until u open and start the encode/decode cause otherwise their apis are the same)
+i think thats better expressed as three types (context, open encoder, open decoder)
+oh and also yea u still want the codec ctx class to represent the combination of the codec and the ctx
+cause i forgot u need both when u open it
+
+so now the plan is a codec context class to represent pre opening stuff like changing params
+then "opening" that by transfering ownership to a separate encoder/decoder type that exposes
+the encoding and decoding api of the context. 
+*/
+class Encoder {
+    
+    Encoder(codec_context ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
+    public:
+    // more ctors soonTM pass ur own packet or something
+    result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) {
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
+        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        return Encoder{std::move(ctx), std::move(pkt)};
+    }
+    // not using any of the send_packet overloads to drain
+    //  i want all those overloads to mean the same thing. im not even calling them here
+    //  those overloads are just to send packets. the meaning of passing nullptr is
+    //  subject to change (e.g. what if packet can convert from nullptr like regardless
+    //  those semantics now silently depends on this code and what it means to pass nullptr to 
+    //  these functions. id rather just be explicit)
+    // more formally: passing nullptr to send_packet/send_frame is not guarenteed to drain
+    //  use these functions to drain
+    result<void> start_draining() noexcept {
+        auto ec = avcodec_send_frame(ctx.get(), nullptr);
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    
+    result<void> send_frame(const AVFrame* f) noexcept {
+        auto ec = avcodec_send_frame(ctx_.get(), f);
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    result<void> recieve_packet() noexcept {
+        auto ec = avcodec_receive_packet(ctx_.get(), encoder_packet_.get());
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    // if the user doesnt want their own packet after encoding the frame
+    packet& packet() noexcept {
+        return encoder_packet_;
+    }
+    // if they do want their own packet
+    result<packet> ref_packet() noexcept {
+        return packet::make(encoder_packet_.get(), shallow_copy);
+    }
+    private:
+    packet encoder_packet_;
+    codec_context ctx_;
+}
+
+/**
+like this approach a lot because the user gets control over all of the memory.
+(pending the right support for passing ur own packet in the encoder class)
+this function only handles the encoding algorithm
+i would ideally like to reuse this algo
+*/
+template <class InputIt, class EndIt, class OutputIt>
+result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt packet_out) {
+    for (auto it = frame_begin; it != frame_end; ++it) {
+        LUMA_AV_OUTCOME_TRY(enc.send_frame(*it));
+        if (auto res = enc.recieve_packet()) {
+            LUMA_AV_OUTCOME_TRY(pkt, enc.ref_packet());
+            *packet_out = std::move(pkt);
+        } else if (res.error().value() == AVERROR(EAGAIN)) {
+            continue;
+        } else {
+            return luma::av::outcome::failure(res);
+        }
+    }
+    return luma::av::outcome::success();
+}
+
+template <class InputIt, class EndIt, class OutputIt>
+result<void> Drain(Encoder& enc, OutputIt packet_out) {
+    LUMA_AV_OUTCOME_TRY(enc.start_draining());
+    while (true) {
+        if (auto res = enc.recieve_packet()) {
+            LUMA_AV_OUTCOME_TRY(pkt, enc.ref_packet());
+            *packet_out = std::move(pkt);
+        } else if (res.error().value() == AVERROR_EOF) {
+            return luma::av::outcome::success();
+        } else {
+            return luma::av::outcome::failure(res);
+        }
+    }
+}
 
 
 

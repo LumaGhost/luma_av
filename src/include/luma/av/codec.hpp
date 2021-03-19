@@ -7,6 +7,8 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include <ranges>
+
 #include <memory>
 
 #include <luma/av/result.hpp>
@@ -269,7 +271,7 @@ class Encoder {
     Encoder(codec_context ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
     public:
     // more ctors soonTM pass ur own packet or something
-    result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
+    static result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Encoder{std::move(ctx), std::move(pkt)};
@@ -314,10 +316,10 @@ like this approach a lot because the user gets control over all of the memory.
 this function only handles the encoding algorithm
 i would ideally like to reuse this algo
 */
-template <class InputIt, class EndIt, class OutputIt>
-result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt packet_out) noexcept {
-    for (auto it = frame_begin; it != frame_end; ++it) {
-        LUMA_AV_OUTCOME_TRY(enc.send_frame(*it));
+template <std::ranges::range Frames, class OutputIt>
+result<void> Encode(Encoder& enc, Frames frames, OutputIt packet_out) noexcept {
+    for (auto const& frame : frames) {
+        LUMA_AV_OUTCOME_TRY(enc.send_frame(frame));
         if (auto res = enc.recieve_packet()) {
             LUMA_AV_OUTCOME_TRY(pkt, enc.ref_packet());
             *packet_out = std::move(pkt);
@@ -330,7 +332,7 @@ result<void> Encode(Encoder& enc, InputIt frame_begin, EndIt frame_end, OutputIt
     return luma::av::outcome::success();
 }
 
-template <class InputIt, class EndIt, class OutputIt>
+template <class OutputIt>
 result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
     LUMA_AV_OUTCOME_TRY(enc.start_draining());
     while (true) {

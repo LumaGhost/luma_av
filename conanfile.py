@@ -21,7 +21,7 @@ class LumaAvConan(ConanFile):
     exports_sources = "src/*", "test/*", "CMakeLists.txt"
 
     def requirements(self):
-        self.requires("boost/1.71.0@conan/stable")
+        self.requires("boost/1.75.0")
         self.requires("ffmpeg/4.2.1@bincrafters/stable")
         self.requires("zlib/1.2.11@conan/stable")
         self.requires("bzip2/1.0.8@conan/stable")

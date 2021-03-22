@@ -78,6 +78,9 @@ class packet {
         LUMA_AV_OUTCOME_TRY_FF(av_packet_ref(pkt.pkt_.get(), in_pkt));
         return std::move(pkt);
     }
+    static result<packet> make(const packet& in_pkt, shallow_copy_t) noexcept {
+        return This::make(in_pkt.get(), shallow_copy);
+    }
 
     static result<packet> make(const AVPacket* in_pkt) noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, This::make(in_pkt, shallow_copy));

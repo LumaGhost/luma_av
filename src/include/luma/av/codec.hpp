@@ -293,6 +293,10 @@ class Encoder {
         auto ec = avcodec_send_frame(ctx_.get(), f);
         return detail::ffmpeg_code_to_result(ec);
     }
+    result<void> send_frame(const frame& f) noexcept {
+        auto ec = avcodec_send_frame(ctx_.get(), f.get());
+        return detail::ffmpeg_code_to_result(ec);
+    }
     result<void> recieve_packet() noexcept {
         auto ec = avcodec_receive_packet(ctx_.get(), encoder_packet_.get());
         return detail::ffmpeg_code_to_result(ec);
@@ -317,7 +321,7 @@ this function only handles the encoding algorithm
 i would ideally like to reuse this algo
 */
 template <std::ranges::range Frames, class OutputIt>
-result<void> Encode(Encoder& enc, Frames frames, OutputIt packet_out) noexcept {
+result<void> Encode(Encoder& enc, Frames const& frames, OutputIt packet_out) noexcept {
     for (auto const& frame : frames) {
         LUMA_AV_OUTCOME_TRY(enc.send_frame(frame));
         if (auto res = enc.recieve_packet()) {
@@ -347,6 +351,138 @@ result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
     }
 }
 
+class Decoder {
+    
+    Decoder(codec_context ctx, frame f) noexcept : ctx_{std::move(ctx)}, decoder_frame_{std::move(f)} {}
+    public:
+    // more ctors soonTM pass ur own packet or something
+    static result<Decoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
+        LUMA_AV_OUTCOME_TRY(f, frame::make());
+        return Decoder{std::move(ctx), std::move(f)};
+    }
+
+    result<void> start_draining() noexcept {
+        auto ec = avcodec_send_packet(ctx_.get(), nullptr);
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    
+    result<void> send_packet(const AVPacket* p) noexcept {
+        auto ec = avcodec_send_packet(ctx_.get(), p);
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    result<void> send_packet(const packet& p) noexcept {
+        auto ec = avcodec_send_packet(ctx_.get(), p.get());
+        return detail::ffmpeg_code_to_result(ec);
+    }
+    result<void> recieve_frame() noexcept {
+        auto ec = avcodec_receive_frame(ctx_.get(), decoder_frame_.get());
+        return detail::ffmpeg_code_to_result(ec);
+    }
+
+    frame& view_frame() noexcept {
+        return decoder_frame_;
+    }
+
+    result<frame> ref_frame() noexcept {
+        return frame::make(decoder_frame_.get(), frame::shallow_copy);
+    }
+    private:
+    codec_context ctx_;
+    frame decoder_frame_;
+};
+
+template <std::ranges::range Packets, class OutputIt>
+result<void> Decode(Decoder& dec, Packets const& packets, OutputIt frame_out) noexcept {
+    for (auto const& packet : packets) {
+        LUMA_AV_OUTCOME_TRY(dec.send_packet(packet));
+        if (auto res = dec.recieve_frame()) {
+            LUMA_AV_OUTCOME_TRY(f, dec.ref_frame());
+            *frame_out = std::move(f);
+        } else if (res.error().value() == AVERROR(EAGAIN)) {
+            continue;
+        } else {
+            return luma::av::outcome::failure(res.error());
+        }
+    }
+    return luma::av::outcome::success();
+}
+
+template <class OutputIt>
+result<void> Drain(Decoder& dec, OutputIt frame_out) noexcept {
+    LUMA_AV_OUTCOME_TRY(dec.start_draining());
+    while (true) {
+        if (auto res = dec.recieve_frame()) {
+            LUMA_AV_OUTCOME_TRY(f, dec.ref_frame());
+            *frame_out = std::move(f);
+        } else if (res.error().value() == AVERROR_EOF) {
+            return luma::av::outcome::success();
+        } else {
+            return luma::av::outcome::failure(res.error());
+        }
+    }
+}
+
+
+
+
+
+struct EncClosure {
+    Encoder& enc;
+    template<class F>
+    result<std::reference_wrapper<packet>> operator()(result<F> const& frame_res) noexcept {
+        LUMA_AV_OUTCOME_TRY(frame, frame_res);
+        return EncodeImpl(frame);
+    }
+    template<class F>
+    result<std::reference_wrapper<packet>> operator()(F const& frame) noexcept {
+        return EncodeImpl(frame);
+    }
+    template<class F>
+    result<std::reference_wrapper<packet>> EncodeImpl(F const& frame) noexcept {
+        LUMA_AV_OUTCOME_TRY(enc.send_frame(frame));
+        LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
+        return enc.view_packet();
+    }
+
+};
+const auto encode_view = [](Encoder& enc){
+    return std::views::transform([&](const auto& frame) {
+        return EncClosure{enc}(frame);
+    });
+};
+namespace views {
+const auto encode = encode_view;
+} // views
+
+struct DecClosure {
+    Decoder& dec;
+    template<class Pkt>
+    result<std::reference_wrapper<frame>> operator()(result<Pkt> const& packet_res) noexcept {
+        LUMA_AV_OUTCOME_TRY(packet, packet_res);
+        return DecodeImpl(packet);
+    }
+    template<class Pkt>
+    result<std::reference_wrapper<frame>> operator()(Pkt const& packet) noexcept {
+        return DecodeImpl(packet);
+    }
+
+    template<class Pkt>
+    result<std::reference_wrapper<frame>> DecodeImpl(Pkt const& packet) noexcept {
+        LUMA_AV_OUTCOME_TRY(dec.send_packet(packet));
+        LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
+        return dec.view_frame();
+    }
+};
+const auto decode_view = [](Decoder& dec){
+    return std::views::transform([&](const auto& packet_res) {
+        return DecClosure{dec}(packet_res);
+    });
+};
+
+namespace views {
+const auto decode = decode_view;
+} // views
 
 
 

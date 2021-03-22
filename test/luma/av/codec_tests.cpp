@@ -7,7 +7,16 @@
 
 #include <gtest/gtest.h>
 
+#include <luma/av/format.hpp>
+
 using namespace luma::av;
+using namespace luma::av::views;
+
+static result<Decoder> DefaultDecoder(std::string const& codec_name) {
+    LUMA_AV_OUTCOME_TRY(codec, luma::av::find_decoder(codec_name));
+    auto ctx = codec_context{codec};
+    return Decoder::make(std::move(ctx));
+}
 
 static result<Encoder> DefaultEncoder(std::string const& codec_name) {
     LUMA_AV_OUTCOME_TRY(codec, luma::av::find_decoder(codec_name));
@@ -49,4 +58,89 @@ TEST(codec, encode_single) {
 
     Encode(enc, std::views::single(frame), std::back_inserter(packets)).value();
     Drain(enc, std::back_inserter(packets)).value();
+}
+
+TEST(codec, transcode_ranges) {
+    std::array<AVPacket*, 5> pkts; 
+
+    auto dec = DefaultDecoder("h264").value();
+    auto enc = DefaultEncoder("h264").value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    for (auto const& pkt : pkts | decode_view(dec) | encode_view(enc)) {
+        if (pkt) {
+            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+        } else if (pkt.error().value() == AVERROR(EAGAIN)) {
+            continue;
+        } else {
+            throw std::system_error{pkt.error()};
+        }
+    }
+}
+
+TEST(codec, transcode_functions) {
+    std::array<AVPacket*, 5> pkts; 
+
+    auto dec = DefaultDecoder("h264").value();
+    auto enc = DefaultEncoder("h264").value();
+
+    std::vector<frame> out_frames;
+    out_frames.reserve(5);
+    Decode(dec, pkts, std::back_inserter(out_frames)).value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+    Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
+}
+
+
+TEST(codec, read_transcode_ranges) {
+
+    auto reader = Reader::make("input_url").value();
+
+    auto dec = DefaultDecoder("h264").value();
+    auto enc = DefaultEncoder("h264").value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    for (auto const& pkt : read_input(reader) | decode(dec) | encode(enc)) {
+        if (pkt) {
+            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+        } else if (pkt.error().value() == AVERROR(EAGAIN)) {
+            continue;
+        } else if (pkt.error().value() == AVERROR_EOF) {
+            break;
+        } else {
+            throw std::system_error{pkt.error()};
+        }
+    }
+}
+
+TEST(codec, read_transcode_functions) {
+    auto reader = Reader::make("input_url").value();
+
+    auto dec = DefaultDecoder("h264").value();
+    auto enc = DefaultEncoder("h264").value();
+
+    std::vector<packet> pkts;
+    while (true) {
+        if (auto pkt = reader.ReadFrame()) {
+            pkts.push_back(std::move(pkt).value());
+        } else if (pkt.error().value() == AVERROR_EOF){
+            break;
+        } else {
+            throw std::system_error{pkt.error()};
+        }
+    }
+
+    std::vector<frame> out_frames;
+    out_frames.reserve(5);
+    Decode(dec, pkts, std::back_inserter(out_frames)).value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+    Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
 }

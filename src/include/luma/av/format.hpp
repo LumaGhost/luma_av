@@ -42,8 +42,8 @@ class format_context {
     }
     };
 
-    using unique_fctx = detail::unique_ptr<AVFormatContext,
-                                           detail::format_context_deleter>
+    using unique_fctx = std::unique_ptr<AVFormatContext,
+                                        format_context_deleter>;
 
 
     /**
@@ -55,7 +55,7 @@ class format_context {
     static result<unique_fctx> alloc_format_ctx() noexcept {
         auto ctx = avformat_alloc_context();
         if (ctx) {
-            return unique_or_null_format_ctx{ctx};
+            return unique_fctx{ctx};
         } else {
             return luma::av::make_error_code(errc::alloc_failure);
         }
@@ -99,16 +99,82 @@ class format_context {
     }
     // if the user wants to manage the packet themselves
     result<void> read_frame(packet& pkt) noexcept {
-        return this->read_frame(this->get());
+        return this->read_frame(pkt.get());
     }
     // if the user always wants a copy of the packet
     result<packet> read_frame() noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         LUMA_AV_OUTCOME_TRY(this->read_frame(pkt));
-        return pkt;
+        return std::move(pkt);
     }
 };
 
+/**
+gives us a packet workspace. helps with range functionality
+*/
+class Reader {
+    public:
+    static result<Reader> make(format_context fctx) noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        return Reader{std::move(fctx), std::move(pkt)};
+    }
+    static result<Reader> make(const char* url) noexcept {
+        LUMA_AV_OUTCOME_TRY(fctx, format_context::make(url));
+        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        return Reader{std::move(fctx), std::move(pkt)};
+    }
+    result<void> ReadFrameInPlace() noexcept {
+        return fctx_.read_frame(reader_packet_);
+    }
+    result<packet> ReadFrame() noexcept {
+        LUMA_AV_OUTCOME_TRY(ReadFrameInPlace());
+        return ref_packet();
+    }
+    
+    /*
+    we dont need to provide any overloads that use packets as out params
+    this class already has its own packet.
+    we can provide any customization for managing the packet in the constructor
+    */
+
+    packet& view_packet() noexcept {
+        return reader_packet_;
+    }
+    result<packet> ref_packet() noexcept {
+        return packet::make(reader_packet_, packet::shallow_copy);
+    }
+    private:
+    Reader(format_context fctx, packet reader_packet) 
+        : reader_packet_{std::move(reader_packet)}, fctx_{std::move(fctx_)} {}
+    packet reader_packet_;
+    format_context fctx_;
+
+};
+
+namespace detail {
+
+// doesnt have to be a function object i dont think
+struct ReadRangeImpl {
+    Reader& reader;
+    result<std::reference_wrapper<packet>> operator()() noexcept {
+        LUMA_AV_OUTCOME_TRY(reader.ReadFrameInPlace());
+        return reader.view_packet();
+    }
+};
+} // detail
+
+const auto read_input_view = [](Reader& reader) {
+    // not sure why i need the take and why views::all doesnt work tbh
+    // is this a hack? did i do a bad thing??
+    return std::views::iota(0) | std::views::take(std::numeric_limits<int>::max())
+                | std::views::transform([&](const auto){
+        return detail::ReadRangeImpl{reader}();
+    });
+};
+
+namespace views {
+const auto read_input = read_input_view;
+} // views
 
 } // av
 } // luma

@@ -1,6 +1,8 @@
 
 
 #include <array>
+#include <future>
+#include <queue>
 #include <vector>
 
 #include <luma/av/codec.hpp>
@@ -143,4 +145,77 @@ TEST(codec, read_transcode_functions) {
     std::vector<packet> out_pkts;
     out_pkts.reserve(5);
     Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
+}
+
+namespace {
+const auto queue_pop_view = [](auto& q){
+    return std::views::iota(0) | std::views::take(std::numeric_limits<int>::max()) 
+        | std::views::transform([&](auto){
+        auto ele = std::move(q.front());
+        q.pop();
+        return ele;
+    });
+};
+} // anon
+
+TEST(codec, read_transcode_ranges2) {
+
+    auto reader = Reader::make("input_url").value();
+
+    auto dec = DefaultDecoder("h264").value();
+    auto enc = DefaultEncoder("h264").value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    std::queue<result<packet>> packets;
+    std::queue<result<frame>> frames;
+
+    auto read_fut = std::async([&]() -> void {
+        for (auto const& pkt : read_input(reader)) {
+            if (pkt) {
+                packets.emplace(std::move(pkt.value().get()));
+            } else if (pkt.error().value() == AVERROR_EOF) {
+                packets.emplace(luma::av::errc::end);
+                return;
+            } else {
+                packets.emplace(pkt.error());
+                return;
+            }
+        }
+    });
+
+    auto dec_fut = std::async([&]() -> void {
+        for (const auto frame : queue_pop_view(packets) | decode(dec)) {
+            if (frame) {
+                frames.emplace(std::move(frame.value().get()));
+            } else if (frame.error().value() == AVERROR(EAGAIN)) {
+                continue;
+            } else {
+                frames.emplace(frame.error());
+                return;
+            }
+        }
+    });
+
+    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+        std::vector<packet> out_packets;
+        for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
+            if (pkt) {
+                out_packets.push_back(std::move(pkt.value().get()));
+            } else if (pkt.error().value() == AVERROR(EAGAIN)) {
+                continue;
+            } else if (pkt.error() == luma::av::errc::end) {
+                read_fut.get();
+                dec_fut.get();
+                return std::move(out_packets);
+            } else {
+                read_fut.get();
+                dec_fut.get();
+                return luma::av::outcome::failure(pkt.error());
+            }
+        }
+    });
+
+    auto pkts = enc_fut.get().value();
 }

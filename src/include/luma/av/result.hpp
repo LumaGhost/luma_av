@@ -27,7 +27,9 @@ enum class errc : int
   success     = 0,
   eof         = AVERROR_EOF,
   codec_not_found = 1, 
-  alloc_failure = AVERROR(ENOMEM)
+  alloc_failure = AVERROR(ENOMEM),
+  end, // no more data will be sent
+  again // no data yet but if u send again u may get some
 };
 
 using error_code = std::error_code;

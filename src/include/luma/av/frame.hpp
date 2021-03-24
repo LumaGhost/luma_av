@@ -34,7 +34,7 @@ class Buffer {
 
     public:
 
-    result<Buffer> make(std::size_t size) noexcept {
+    static result<Buffer> make(std::size_t size) noexcept {
         auto buff = static_cast<uint8_t*>(av_malloc(size));
         if (!buff) {
             return luma::av::outcome::failure(luma::av::errc::alloc_failure);
@@ -64,8 +64,7 @@ class Buffer {
 /**
 https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html
 */
-template <int alignment>
-class basic_frame {
+class Frame {
 
 
     struct frame_deleter {
@@ -86,32 +85,36 @@ class basic_frame {
         }
     }
 
-    basic_frame(AVFrame* frame) noexcept : frame_{frame} {
+    Frame(AVFrame* frame) noexcept : frame_{frame} {
 
     }
-    using This = basic_frame<alignment>;
+    using This = Frame;
 
     struct VideoParams {
         int width{};
         int height{};
-        int format{};
+        AVPixelFormat format{};
+        int alignment{};
     };
 
     // would have used a free friend but fuck adl
-    void ApplyParams(VideoParams const& par) noexcept {
+    int ApplyParams(VideoParams const& par) noexcept {
         frame_->width = par.width;
         frame_->height = par.height;
         frame_->format = par.format;
+        return par.alignment;
     }
 
     struct AudioParams {
         int nb_samples{};
-        int chanel_layout{};
+        int channel_layout{};
+        int alignment{};
     };
 
-    void ApplyParams(AudioParams const& par) noexcept {
+    int ApplyParams(AudioParams const& par) noexcept {
         frame_->nb_samples = par.nb_samples;
-        frame_->chanel_layout = par.chanel_layout;
+        frame_->channel_layout = par.channel_layout;
+        return par.alignment;
     }
 
     using FrameBufferParams = std::variant<VideoParams, AudioParams>;
@@ -129,11 +132,16 @@ class basic_frame {
 
     public:
 
+    Frame(Frame const&) = delete;
+    Frame& operator=(Frame const&) = delete;
+    Frame(Frame&&) noexcept = default;
+    Frame& operator=(Frame&&) noexcept = default;
+
     // https://ffmpeg.org/doxygen/trunk/group__lavu__picture.html#ga5b6ead346a70342ae8a303c16d2b3629
     result<void> alloc_buffer(FrameBufferParams const& par) noexcept {
-        std::visit([&](auto&& alt){this->ApplyParams(alt);}, par);
+        const auto align = std::visit([&](auto&& alt){return this->ApplyParams(alt);}, par);
         av_frame_unref(frame_.get());
-        LUMA_AV_OUTCOME_TRY_FF(av_frame_get_buffer(frame_.get(), alignment));
+        LUMA_AV_OUTCOME_TRY_FF(av_frame_get_buffer(frame_.get(), align));
         buff_par_ = par;
         return luma::av::outcome::success();
     }
@@ -143,12 +151,15 @@ class basic_frame {
         return This{frame.release()};
     }
 
+    // not sure i can actually do this without violating my invariant
+    // how do i check for buffers etc?
     static This FromOwner(AVFrame* owned_frame) noexcept {
         return This{owned_frame};
     }
     struct shallow_copy_t{};
     static constexpr auto shallow_copy = shallow_copy_t{};
 
+    // same here. need a way to know if we need to initialize the buffer params
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
     static result<This> make(const AVFrame* in_frame, shallow_copy_t) noexcept {
         auto* new_frame = av_frame_clone(in_frame);
@@ -166,18 +177,18 @@ class basic_frame {
 
     // just gona say ub if its not actually an image
     // in practice i'll just terminate
-    VideoParams const& video_params() noexcept {
+    VideoParams const& video_params() const noexcept {
         return std::get<VideoParams>(buff_par_.value());
     }
 
     // https://ffmpeg.org/doxygen/trunk/group__lavu__picture.html#ga5b6ead346a70342ae8a303c16d2b3629
     // not sure of the size type yet
     result<std::size_t> ImageBufferSize() const noexcept {
-        auto const& video_params = video_params();
+        auto const& video_params = this->video_params();
         auto buff_size =  av_image_get_buffer_size(video_params.format, 
-                                video_params.width, video_params.height, alignment);
+                                video_params.width, video_params.height, video_params.alignment);
         if (buff_size < 0) {
-            return detail::ffmpeg_code_to_result(buff_size);
+            return luma::av::errc{buff_size};
         }
         return luma::av::outcome::success(buff_size);
     }
@@ -185,32 +196,37 @@ class basic_frame {
     result<Buffer> CopyToImageBuffer() const noexcept {
         LUMA_AV_OUTCOME_TRY(size, ImageBufferSize());
         LUMA_AV_OUTCOME_TRY(buff, Buffer::make(size));
-        auto const& video_params = video_params();
+        auto const& video_params = this->video_params();
         LUMA_AV_OUTCOME_TRY_FF(av_image_copy_to_buffer(
             buff.data(), buff.ssize(), frame_->data, frame_->linesize,
             video_params.format, video_params.width, video_params.height,
-            alignment
+            video_params.alignment
         ));
         return std::move(buff);
     }
 
     private:
-    friend result<void> RefImpl(basic_frame& dst, basic_frame const& src) {
+    friend void Unref(Frame& dst) {
+        av_frame_unref(dst.frame_.get());
+        dst.buff_par_ = std::nullopt;
+    }
+    friend result<void> RefImpl(Frame& dst, Frame const& src) {
         assert(src.buff_par_);
         if (dst.buff_par_) {
-            av_frame_unref(dst.frame_.get());
+            Unref(dst);
         }
         LUMA_AV_OUTCOME_TRY_FF(av_frame_ref(dst.frame_.get(), src.frame_.get()));
+        dst.buff_par_ = src.buff_par_;
         return luma::av::outcome::success();
     }
     public:
 
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga88b0ecbc4eb3453eef3fbefa3bddeb7c
-    result<void> RefTo(basic_frame& dst) const noexcept {
+    result<void> RefTo(Frame& dst) const noexcept {
         return RefImpl(dst, *this);
     }
 
-    result<void> RefFrom(basic_frame const& src) const noexcept {
+    result<void> RefFrom(Frame const& src) noexcept {
         return RefImpl(*this, src);
     }
 
@@ -218,19 +234,20 @@ class basic_frame {
     https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga709e62bc2917ffd84c5c0f4e1dfc48f7
     */
     private:
-    friend void MoveReImpl(basic_frame& dst, basic_frame& src) noexcept {
+    friend void MoveReImpl(Frame& dst, Frame& src) noexcept {
         assert(src.buff_par_);
         if (dst.buff_par_) {
-            av_frame_unref(dst.frame_.get());
+            Unref(dst);
         }
         av_frame_move_ref(dst.frame_.get(), src.frame_.get());
+        dst.buff_par_ = src.buff_par_;
     }
     public:
-    void MoveRefTo(basic_frame& dst) noexcept {
+    void MoveRefTo(Frame& dst) noexcept {
         MoveReImpl(dst, *this);
     }
 
-    void MoveRefFrom(basic_frame& src) noexcept {
+    void MoveRefFrom(Frame& src) noexcept {
         MoveReImpl(*this, src);
     }
 
@@ -247,7 +264,7 @@ class basic_frame {
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#gadd5417c06f5a6b419b0dbd8f0ff363fd
     result<void> MakeWritable() noexcept {
         assert(buff_par_);
-        LUMA_AV_OUTCOME_TRY_FF(frame_.get());
+        LUMA_AV_OUTCOME_TRY_FF(av_frame_make_writable(frame_.get()));
         return luma::av::outcome::success();
     }
 
@@ -259,8 +276,6 @@ class basic_frame {
     }
 
 };
-
-using frame = basic_frame<32>;
 
 } // av
 } // luma

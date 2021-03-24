@@ -10,8 +10,10 @@
 #include <gtest/gtest.h>
 
 #include <luma/av/format.hpp>
+#include <luma/av/util.hpp>
 
 using namespace luma::av;
+using namespace luma_av;
 using namespace luma::av::views;
 
 static result<Decoder> DefaultDecoder(std::string const& codec_name) {
@@ -88,7 +90,7 @@ TEST(codec, transcode_functions) {
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<frame> out_frames;
+    std::vector<Frame> out_frames;
     out_frames.reserve(5);
     Decode(dec, pkts, std::back_inserter(out_frames)).value();
 
@@ -138,7 +140,7 @@ TEST(codec, read_transcode_functions) {
         }
     }
 
-    std::vector<frame> out_frames;
+    std::vector<Frame> out_frames;
     out_frames.reserve(5);
     Decode(dec, pkts, std::back_inserter(out_frames)).value();
 
@@ -169,7 +171,7 @@ TEST(codec, read_transcode_ranges2) {
     out_pkts.reserve(5);
 
     std::queue<result<packet>> packets;
-    std::queue<result<frame>> frames;
+    std::queue<result<Frame>> frames;
 
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
@@ -199,6 +201,10 @@ TEST(codec, read_transcode_ranges2) {
     });
 
     auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+        auto f = luma_av::detail::finally([&](){
+            read_fut.get();
+            dec_fut.get();
+        });
         std::vector<packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
@@ -206,12 +212,8 @@ TEST(codec, read_transcode_ranges2) {
             } else if (pkt.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else if (pkt.error() == luma::av::errc::end) {
-                read_fut.get();
-                dec_fut.get();
                 return std::move(out_packets);
             } else {
-                read_fut.get();
-                dec_fut.get();
                 return luma::av::outcome::failure(pkt.error());
             }
         }

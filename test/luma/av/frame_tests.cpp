@@ -11,15 +11,15 @@ using namespace luma::av;
 memory safe construct and destruct
 */
 TEST(frame_unit, default_ctor) {
-    auto f = frame::make().value();
+    auto f = Frame::make().value();
 }
 
 /**
 memory safe move construct and destruct
 */
 TEST(frame_unit, default_move) {
-    auto f = frame::make().value();
-    auto f2 = frame{std::move(f)};
+    auto f = Frame::make().value();
+    auto f2 = Frame{std::move(f)};
 }
 
 // /**

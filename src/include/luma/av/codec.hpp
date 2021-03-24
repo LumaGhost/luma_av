@@ -69,18 +69,18 @@ class codec {
     public:
 
     // automatically throws. use the free function to handle yourself
-    explicit codec(enum AVCodecID id) noexcept(luma::av::noexcept_novalue) 
+    explicit codec(enum AVCodecID id) noexcept
      : codec_{detail::find_decoder(id).value()} {
 
     }
 
-    explicit codec(const std::string& name) noexcept(luma::av::noexcept_novalue) 
+    explicit codec(const std::string& name) noexcept
     : codec_{detail::find_decoder(name).value()} {
 
     }
 
     // contract that codec isnt null
-    explicit codec(const AVCodec* codec) noexcept(luma::av::noexcept_contracts)
+    explicit codec(const AVCodec* codec) noexcept
      : codec_{codec} {
         assert(codec_);
     }
@@ -116,21 +116,21 @@ class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail
     //  i didnt need it in the tests. i forget the rules
     using base_type::get;
 
-    codec_parameters() noexcept(luma::av::noexcept_novalue)
+    codec_parameters() noexcept
     : base_type{alloc_codec_par().value()} {
     }
 
-    codec_parameters(const AVCodecParameters* par) noexcept(luma::av::noexcept_novalue) 
+    codec_parameters(const AVCodecParameters* par) noexcept
         : base_type{alloc_codec_par().value()} {
         copy_par(this->get(), par).value();
     }
 
-    codec_parameters(const codec_parameters& other) noexcept(luma::av::noexcept_novalue) 
+    codec_parameters(const codec_parameters& other) noexcept
     : base_type{alloc_codec_par().value()} {
         copy_par(this->get(), other.get()).value();
     }
 
-    codec_parameters& operator=(const codec_parameters& other) noexcept(luma::av::noexcept_novalue)  {
+    codec_parameters& operator=(const codec_parameters& other) noexcept {
         // think this is all you need. it should completely overwrite
         //  the first codec par with the second
         copy_par(this->get(), other.get()).value();
@@ -163,12 +163,12 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     using base_type = detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>;
     using base_type::get;
 
-    explicit codec_context(const codec& codec) noexcept(luma::av::noexcept_novalue) 
+    explicit codec_context(const codec& codec) noexcept
         : base_type{alloc_context(codec).value()}, codec_{codec.get()} {
 
     }
 
-    explicit codec_context(const codec& codec, const codec_parameters& par) noexcept(luma::av::noexcept_novalue) 
+    explicit codec_context(const codec& codec, const codec_parameters& par) noexcept
         : codec_context{codec} {
         codec_ctx_from_par(this->get(), par.get()).value();
     }
@@ -178,7 +178,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     codec_context(codec_context&&) noexcept = default;
     codec_context& operator=(codec_context&&) noexcept = default;
 
-    result<codec_parameters> codec_par() const noexcept(luma::av::noexcept_novalue)  {
+    result<codec_parameters> codec_par() const noexcept {
         auto par = codec_parameters{};
         LUMA_AV_OUTCOME_TRY(codec_par_from_ctx(par.get(), this->get()));
         return par;
@@ -208,7 +208,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
         auto ec = avcodec_receive_frame(this->get(), frame);
         return detail::ffmpeg_code_to_result(ec);
     }
-    result<void> recieve_frame(frame& frame) noexcept {
+    result<void> recieve_frame(Frame& frame) noexcept {
         auto ec = avcodec_receive_frame(this->get(), frame.get());
         return detail::ffmpeg_code_to_result(ec);
     }
@@ -293,7 +293,7 @@ class Encoder {
         auto ec = avcodec_send_frame(ctx_.get(), f);
         return detail::ffmpeg_code_to_result(ec);
     }
-    result<void> send_frame(const frame& f) noexcept {
+    result<void> send_frame(const Frame& f) noexcept {
         auto ec = avcodec_send_frame(ctx_.get(), f.get());
         return detail::ffmpeg_code_to_result(ec);
     }
@@ -353,12 +353,12 @@ result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
 
 class Decoder {
     
-    Decoder(codec_context ctx, frame f) noexcept : ctx_{std::move(ctx)}, decoder_frame_{std::move(f)} {}
+    Decoder(codec_context ctx, Frame f) noexcept : ctx_{std::move(ctx)}, decoder_frame_{std::move(f)} {}
     public:
     // more ctors soonTM pass ur own packet or something
     static result<Decoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
-        LUMA_AV_OUTCOME_TRY(f, frame::make());
+        LUMA_AV_OUTCOME_TRY(f, Frame::make());
         return Decoder{std::move(ctx), std::move(f)};
     }
 
@@ -380,16 +380,16 @@ class Decoder {
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    frame& view_frame() noexcept {
+    Frame& view_frame() noexcept {
         return decoder_frame_;
     }
 
-    result<frame> ref_frame() noexcept {
-        return frame::make(decoder_frame_.get(), frame::shallow_copy);
+    result<Frame> ref_frame() noexcept {
+        return Frame::make(decoder_frame_.get(), Frame::shallow_copy);
     }
     private:
     codec_context ctx_;
-    frame decoder_frame_;
+    Frame decoder_frame_;
 };
 
 template <std::ranges::range Packets, class OutputIt>
@@ -458,17 +458,17 @@ const auto encode = encode_view;
 struct DecClosure {
     Decoder& dec;
     template<class Pkt>
-    result<std::reference_wrapper<frame>> operator()(result<Pkt> const& packet_res) noexcept {
+    result<std::reference_wrapper<Frame>> operator()(result<Pkt> const& packet_res) noexcept {
         LUMA_AV_OUTCOME_TRY(packet, packet_res);
         return DecodeImpl(packet);
     }
     template<class Pkt>
-    result<std::reference_wrapper<frame>> operator()(Pkt const& packet) noexcept {
+    result<std::reference_wrapper<Frame>> operator()(Pkt const& packet) noexcept {
         return DecodeImpl(packet);
     }
 
     template<class Pkt>
-    result<std::reference_wrapper<frame>> DecodeImpl(Pkt const& packet) noexcept {
+    result<std::reference_wrapper<Frame>> DecodeImpl(Pkt const& packet) noexcept {
         LUMA_AV_OUTCOME_TRY(dec.send_packet(packet));
         LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
         return dec.view_frame();

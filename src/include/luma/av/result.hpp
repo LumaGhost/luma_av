@@ -71,11 +71,9 @@ inline std::error_code make_error_code(luma::av::errc e) noexcept {
 #ifdef LUMA_AV_NOEXCEPT_NOVALUE_POLICY
 template <class T>
 using result = luma::av::outcome::std_result<T, luma::av::error_code, luma::av::outcome::policy::terminate>;
-inline constexpr auto noexcept_novalue = true;
 #else 
 template <class T>
 using result = luma::av::outcome::std_result<T, luma::av::error_code>;
-inline constexpr auto noexcept_novalue = false;
 #endif // LUMA_AV_NOEXCEPT_NOVALUE_POLICY
 
 
@@ -84,12 +82,6 @@ inline constexpr auto noexcept_stdlib = true;
 #else 
 inline constexpr auto noexcept_stdlib = false;
 #endif // LUMA_AV_NOEXCEPT_STDLIB
-
-#ifdef LUMA_AV_NOEXCEPT_CONTRACTS
-inline constexpr auto noexcept_contracts = true;
-#else 
-inline constexpr auto noexcept_contracts = false;
-#endif // LUMA_AV_NOEXCEPT_CONTRACTS
 
 
 namespace detail {

@@ -15,6 +15,7 @@ extern "C" {
 #include <luma/av/frame.hpp>
 #include <luma/av/detail/unique_or_null.hpp>
 #include <luma/av/packet.hpp>
+#include <luma/av/util.hpp>
 
 /*
 https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e025894b1fc307a
@@ -41,113 +42,34 @@ inline result<const AVCodec*> find_decoder(enum AVCodecID id) noexcept {
     return codec_error_handling(codec);
 }
 // think ffmpeg is expecting null terminated, so no sv here :/
-inline result<const AVCodec*> find_decoder(const std::string& name) noexcept {
-    const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
+inline result<const AVCodec*> find_decoder(const char* name) noexcept {
+    const AVCodec* codec = avcodec_find_decoder_by_name(name);
     return codec_error_handling(codec);
 }
 
-struct codec_par_deleter {
-    void operator()(AVCodecParameters* par) const noexcept {
-        avcodec_parameters_free(&par);
-    }
-};
 
-struct codec_context_deleter {
-    void operator()(AVCodecContext* ctx) const noexcept {
-        avcodec_free_context(&ctx);
-    }
-};
 
 }// detail
 
-// https://ffmpeg.org/doxygen/3.4/structAVCodec.html#a16e4be8873bd93ac84c7b7d86455d518
-/**
- convenience wrapper around an AVCodec ptr that represents a reference to a global codec
-    owned by the ffmpeg api
- */
-class codec {
-    public:
-
-    // automatically throws. use the free function to handle yourself
-    explicit codec(enum AVCodecID id) noexcept
-     : codec_{detail::find_decoder(id).value()} {
-
-    }
-
-    explicit codec(const std::string& name) noexcept
-    : codec_{detail::find_decoder(name).value()} {
-
-    }
-
-    // contract that codec isnt null
-    explicit codec(const AVCodec* codec) noexcept
-     : codec_{codec} {
-        assert(codec_);
-    }
-
-    auto get() const noexcept -> const AVCodec* {
-        return codec_;
-    }
-
-    codec(const codec&) noexcept = default;
-    codec& operator=(const codec&) noexcept = default;
-
-    private:
-        const AVCodec* codec_;
-};
-
-// if people want to use the error code api
-inline result<codec> find_decoder(enum AVCodecID id) noexcept {
-    LUMA_AV_OUTCOME_TRY(codec_ptr, detail::find_decoder(id));
-    return codec{codec_ptr};
-}
-inline result<codec> find_decoder(const std::string& name) noexcept {
-    LUMA_AV_OUTCOME_TRY(codec_ptr, detail::find_decoder(name));
-    return codec{codec_ptr};
-}
 
 
 // https://ffmpeg.org/doxygen/3.2/structAVCodecParameters.html
-class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail::codec_par_deleter> {
-    public:
+class CodecPar {
 
-    using base_type = detail::unique_or_null<AVCodecParameters, detail::codec_par_deleter>;
-    // do i need this using here?
-    //  i didnt need it in the tests. i forget the rules
-    using base_type::get;
-
-    codec_parameters() noexcept
-    : base_type{alloc_codec_par().value()} {
+    struct codec_par_deleter {
+    void operator()(AVCodecParameters* par) const noexcept {
+        avcodec_parameters_free(&par);
     }
+    };
 
-    codec_parameters(const AVCodecParameters* par) noexcept
-        : base_type{alloc_codec_par().value()} {
-        copy_par(this->get(), par).value();
-    }
+    using unique_par = std::unique_ptr<AVCodecParameters, codec_par_deleter>;
 
-    codec_parameters(const codec_parameters& other) noexcept
-    : base_type{alloc_codec_par().value()} {
-        copy_par(this->get(), other.get()).value();
-    }
-
-    codec_parameters& operator=(const codec_parameters& other) noexcept {
-        // think this is all you need. it should completely overwrite
-        //  the first codec par with the second
-        copy_par(this->get(), other.get()).value();
-        return *this;
-    }
-
-    codec_parameters(codec_parameters&&) noexcept = default;
-    codec_parameters& operator=(codec_parameters&&) noexcept = default;
-
-
-    private:
-    // prob all static in the cpp eventually?
+        // prob all static in the cpp eventually?
     //  something less visible than private functions
-    result<base_type> alloc_codec_par() noexcept {
+    static result<unique_par> alloc_codec_par() noexcept {
         auto par =  avcodec_parameters_alloc();
         if (par) {
-            return base_type{par};
+            return unique_par{par};
         } else {
             return errc::alloc_failure;
         }
@@ -155,34 +77,125 @@ class codec_parameters : public detail::unique_or_null<AVCodecParameters, detail
     result<void> copy_par(AVCodecParameters* out_par, const AVCodecParameters* par) noexcept {
         return detail::ffmpeg_code_to_result(avcodec_parameters_copy(out_par, par));
     }
+    unique_par par_;
+    explicit CodecPar(AVCodecParameters* par) : par_{par} {}
+    public:
+
+    static result<CodecPar> make() noexcept {
+        LUMA_AV_OUTCOME_TRY(par, alloc_codec_par());
+        return CodecPar{par.release()};
+    }
+    static result<CodecPar> make(const AVCodecParameters* other) noexcept {
+        LUMA_AV_OUTCOME_TRY(par, CodecPar::make());
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_copy(par.get(), other));
+        return std::move(par);
+    }
+    static result<CodecPar> make(CodecPar const& other) noexcept {
+        LUMA_AV_OUTCOME_TRY(par, CodecPar::make());
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_copy(par.get(), other.get()));
+        return std::move(par);
+    }
+    // we dont rly have an invariant besides being not null so we can let the user set the underlying ptr directly
+    static result<CodecPar> FromOwner(AVCodecParameters* other) noexcept {
+        LUMA_AV_ASSERT(other);
+        return CodecPar{other};
+    }
+    static result<CodecPar> make(const AVCodecContext* other) noexcept {
+        LUMA_AV_OUTCOME_TRY(par, CodecPar::make());
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_from_context(par.get(), other));
+        return std::move(par);
+    }
+
+    result<void> SetFromCtx(const AVCodecContext* other) noexcept {
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_from_context(par_.get(), other));
+        return luma::av::outcome::success();
+    }
+
+    AVCodecParameters* get() noexcept {
+        return par_.get();
+    }
+    const AVCodecParameters* get() const noexcept {
+        return par_.get();
+    }
+
+    ~CodecPar() noexcept = default;
+    CodecPar(CodecPar const&) noexcept = delete;
+    CodecPar& operator=(CodecPar const&) noexcept = delete;
+    CodecPar(CodecPar&&) noexcept = default;
+    CodecPar& operator=(CodecPar&&) noexcept = default;
+
 };
 
-class codec_context : public detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>{
-
+class CodecContext {
+    struct CodecContextDeleter {
+    void operator()(AVCodecContext* ctx) const noexcept {
+        avcodec_free_context(&ctx);
+    }
+    };
+    using unique_codec_ctx = std::unique_ptr<AVCodecContext, CodecContextDeleter>;
+        // static in cpp
+    static result<unique_codec_ctx> alloc_context(const AVCodec* codec) noexcept {
+        auto ctx = avcodec_alloc_context3(codec);
+        if (ctx) {
+            return unique_codec_ctx{ctx};
+        } else {
+            // i think this is always an alloc failure?
+            return errc::alloc_failure;
+        }
+    }
+    /**
+    invariant: ctx isnt null (except after move where we only support asignment)
+                codec not null. codec is the codec that can be used to open the context
+    */
+    unique_codec_ctx ctx_;
+    const AVCodec* codec_; 
+    CodecContext(AVCodecContext* ctx, const AVCodec* codec) : ctx_{ctx}, codec_{codec} {}
     public:
-    using base_type = detail::unique_or_null<AVCodecContext, detail::codec_context_deleter>;
-    using base_type::get;
 
-    explicit codec_context(const codec& codec) noexcept
-        : base_type{alloc_context(codec).value()}, codec_{codec.get()} {
 
+    static result<CodecContext> make(const char* codec_name) noexcept {
+        LUMA_AV_OUTCOME_TRY(codec, detail::find_decoder(codec_name));
+        LUMA_AV_OUTCOME_TRY(ctx, alloc_context(codec));
+        return CodecContext{ctx.release(), codec};
     }
 
-    explicit codec_context(const codec& codec, const codec_parameters& par) noexcept
-        : codec_context{codec} {
-        codec_ctx_from_par(this->get(), par.get()).value();
+    static result<CodecContext> make(enum AVCodecID id) noexcept {
+        LUMA_AV_OUTCOME_TRY(codec, detail::find_decoder(id));
+        LUMA_AV_OUTCOME_TRY(ctx, alloc_context(codec));
+        return CodecContext{ctx.release(), codec};
     }
 
-    codec_context(const codec_context&) = delete;
-    codec_context& operator=(const codec_context&) = delete;
-    codec_context(codec_context&&) noexcept = default;
-    codec_context& operator=(codec_context&&) noexcept = default;
-
-    result<codec_parameters> codec_par() const noexcept {
-        auto par = codec_parameters{};
-        LUMA_AV_OUTCOME_TRY(codec_par_from_ctx(par.get(), this->get()));
-        return par;
+    static result<CodecContext> make(const char* codec_name, const AVCodecParameters* par) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
+        LUMA_AV_ASSERT(par);
+        LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
+        return std::move(ctx);
     }
+    static result<CodecContext> make(enum AVCodecID id, const AVCodecParameters* par) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id));
+        LUMA_AV_ASSERT(par);
+        LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
+        return std::move(ctx);
+    }
+
+    result<void> SetPar(CodecPar const& par) noexcept {
+        return SetPar(par.get());
+    }
+    result<void> SetPar(const AVCodecParameters* par) noexcept {
+        LUMA_AV_ASSERT(par);
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par));
+        return luma::av::outcome::success();
+    }
+    result<CodecPar> GetPar() noexcept {
+        return CodecPar::make(ctx_.get());
+    }
+
+
+
+    CodecContext(const CodecContext&) = delete;
+    CodecContext& operator=(const CodecContext&) = delete;
+    CodecContext(CodecContext&&) noexcept = default;
+    CodecContext& operator=(CodecContext&&) noexcept = default;
 
 
     /*
@@ -195,7 +208,7 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
          now or in future libavcodec versions."
     */
     result<void> send_packet(const AVPacket* p) noexcept {
-        auto ec = avcodec_send_packet(this->get(), p);
+        auto ec = avcodec_send_packet(ctx_.get(), p);
         return detail::ffmpeg_code_to_result(ec);
     }
 
@@ -205,39 +218,23 @@ class codec_context : public detail::unique_or_null<AVCodecContext, detail::code
     }
 
     result<void> recieve_frame(AVFrame* frame) noexcept {
-        auto ec = avcodec_receive_frame(this->get(), frame);
+        auto ec = avcodec_receive_frame(ctx_.get(), frame);
         return detail::ffmpeg_code_to_result(ec);
     }
     result<void> recieve_frame(Frame& frame) noexcept {
-        auto ec = avcodec_receive_frame(this->get(), frame.get());
+        auto ec = avcodec_receive_frame(ctx_.get(), frame.get());
         return detail::ffmpeg_code_to_result(ec);
     }
 
     const AVCodec* codec() const noexcept {
         return codec_;
     }
-
-
-    private:
-    // static in cpp
-    result<base_type> alloc_context(const av::codec& codec) noexcept {
-        auto ctx = avcodec_alloc_context3(codec.get());
-        if (ctx) {
-            return base_type{ctx};
-        } else {
-            // i think this is always an alloc failure?
-            return errc::alloc_failure;
-        }
+    const AVCodecContext* get() const noexcept {
+        return ctx_.get();
     }
-    result<void> codec_par_from_ctx(AVCodecParameters* par, const AVCodecContext* ctx) const noexcept {
-        return detail::ffmpeg_code_to_result(avcodec_parameters_from_context(par, ctx));
+    AVCodecContext* get() noexcept {
+        return ctx_.get();
     }
-    result<void> codec_ctx_from_par(AVCodecContext* ctx, const AVCodecParameters* par) const noexcept {
-        return detail::ffmpeg_code_to_result(avcodec_parameters_to_context(ctx, par));
-    }
-    const AVCodec* codec_ = nullptr; 
-    // frame decoder_frame_;
-    // packet encoder_packet_;
 };
 
 // not sure if i want the packet/frame workspace to be part of the class yet
@@ -268,10 +265,10 @@ the encoding and decoding api of the context.
 */
 class Encoder {
     
-    Encoder(codec_context ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
+    Encoder(CodecContext ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
     public:
     // more ctors soonTM pass ur own packet or something
-    static result<Encoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
+    static result<Encoder> make(CodecContext ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Encoder{std::move(ctx), std::move(pkt)};
@@ -310,7 +307,7 @@ class Encoder {
         return packet::make(encoder_packet_.get(), packet::shallow_copy);
     }
     private:
-    codec_context ctx_;
+    CodecContext ctx_;
     packet encoder_packet_;
 };
 
@@ -353,10 +350,10 @@ result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
 
 class Decoder {
     
-    Decoder(codec_context ctx, Frame f) noexcept : ctx_{std::move(ctx)}, decoder_frame_{std::move(f)} {}
+    Decoder(CodecContext ctx, Frame f) noexcept : ctx_{std::move(ctx)}, decoder_frame_{std::move(f)} {}
     public:
     // more ctors soonTM pass ur own packet or something
-    static result<Decoder> make(codec_context ctx, AVDictionary**  options = nullptr) noexcept {
+    static result<Decoder> make(CodecContext ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
         LUMA_AV_OUTCOME_TRY(f, Frame::make());
         return Decoder{std::move(ctx), std::move(f)};
@@ -388,7 +385,7 @@ class Decoder {
         return Frame::make(decoder_frame_.get(), Frame::shallow_copy);
     }
     private:
-    codec_context ctx_;
+    CodecContext ctx_;
     Frame decoder_frame_;
 };
 

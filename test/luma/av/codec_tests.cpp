@@ -17,14 +17,12 @@ using namespace luma_av;
 using namespace luma::av::views;
 
 static result<Decoder> DefaultDecoder(std::string const& codec_name) {
-    LUMA_AV_OUTCOME_TRY(codec, luma::av::find_decoder(codec_name));
-    auto ctx = codec_context{codec};
+    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name.c_str()));
     return Decoder::make(std::move(ctx));
 }
 
 static result<Encoder> DefaultEncoder(std::string const& codec_name) {
-    LUMA_AV_OUTCOME_TRY(codec, luma::av::find_decoder(codec_name));
-    auto ctx = codec_context{codec};
+    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name.c_str()));
     return Encoder::make(std::move(ctx));
 }
 

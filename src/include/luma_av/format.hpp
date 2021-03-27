@@ -80,9 +80,9 @@ class format_context {
         return format_context{ctx.release()};
     }
 
-    static result<format_context> make(const char* url) noexcept {
+    static result<format_context> make(const cstr_view url) noexcept {
         AVFormatContext* fctx = nullptr;\
-        LUMA_AV_OUTCOME_TRY_FF(avformat_open_input(&fctx, url, nullptr, nullptr));
+        LUMA_AV_OUTCOME_TRY_FF(avformat_open_input(&fctx, url.c_str(), nullptr, nullptr));
         auto ctx = format_context{fctx};
         LUMA_AV_OUTCOME_TRY(ctx.find_stream_info(nullptr));
         return ctx;
@@ -117,7 +117,7 @@ class Reader {
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Reader{std::move(fctx), std::move(pkt)};
     }
-    static result<Reader> make(const char* url) noexcept {
+    static result<Reader> make(const cstr_view url) noexcept {
         LUMA_AV_OUTCOME_TRY(fctx, format_context::make(url));
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Reader{std::move(fctx), std::move(pkt)};

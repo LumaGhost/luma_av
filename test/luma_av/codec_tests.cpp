@@ -14,14 +14,15 @@
 
 using namespace luma_av;
 using namespace luma_av::views;
+using namespace luma_av_literals;
 
 static result<Decoder> DefaultDecoder(std::string const& codec_name) {
-    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name.c_str()));
+    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
     return Decoder::make(std::move(ctx));
 }
 
 static result<Encoder> DefaultEncoder(std::string const& codec_name) {
-    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name.c_str()));
+    LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
     return Encoder::make(std::move(ctx));
 }
 
@@ -99,7 +100,7 @@ TEST(codec, transcode_functions) {
 
 TEST(codec, read_transcode_ranges) {
 
-    auto reader = Reader::make("input_url").value();
+    auto reader = Reader::make("input_url"_cv).value();
 
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
@@ -121,7 +122,7 @@ TEST(codec, read_transcode_ranges) {
 }
 
 TEST(codec, read_transcode_functions) {
-    auto reader = Reader::make("input_url").value();
+    auto reader = Reader::make("input_url"_cv).value();
 
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
@@ -159,7 +160,7 @@ const auto queue_pop_view = [](auto& q){
 
 TEST(codec, read_transcode_ranges2) {
 
-    auto reader = Reader::make("input_url").value();
+    auto reader = Reader::make("input_url"_cv).value();
 
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();

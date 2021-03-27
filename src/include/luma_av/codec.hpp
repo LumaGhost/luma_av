@@ -40,8 +40,8 @@ inline result<const AVCodec*> find_decoder(enum AVCodecID id) noexcept {
     return codec_error_handling(codec);
 }
 // think ffmpeg is expecting null terminated, so no sv here :/
-inline result<const AVCodec*> find_decoder(const char* name) noexcept {
-    const AVCodec* codec = avcodec_find_decoder_by_name(name);
+inline result<const AVCodec*> find_decoder(const cstr_view name) noexcept {
+    const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
     return codec_error_handling(codec);
 }
 
@@ -151,7 +151,7 @@ class CodecContext {
     public:
 
 
-    static result<CodecContext> make(const char* codec_name) noexcept {
+    static result<CodecContext> make(const cstr_view codec_name) noexcept {
         LUMA_AV_OUTCOME_TRY(codec, detail::find_decoder(codec_name));
         LUMA_AV_OUTCOME_TRY(ctx, alloc_context(codec));
         return CodecContext{ctx.release(), codec};
@@ -163,7 +163,7 @@ class CodecContext {
         return CodecContext{ctx.release(), codec};
     }
 
-    static result<CodecContext> make(const char* codec_name, const AVCodecParameters* par) noexcept {
+    static result<CodecContext> make(const cstr_view codec_name, const AVCodecParameters* par) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
         LUMA_AV_ASSERT(par);
         LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));

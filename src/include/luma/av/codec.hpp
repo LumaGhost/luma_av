@@ -22,8 +22,7 @@ https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e02
 https://ffmpeg.org/doxygen/3.2/structAVCodecContext.html
 */
 
-namespace luma {
-namespace av {
+namespace luma_av {
 
 namespace detail {
 
@@ -108,7 +107,7 @@ class CodecPar {
 
     result<void> SetFromCtx(const AVCodecContext* other) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_from_context(par_.get(), other));
-        return luma::av::outcome::success();
+        return luma_av::outcome::success();
     }
 
     AVCodecParameters* get() noexcept {
@@ -184,7 +183,7 @@ class CodecContext {
     result<void> SetPar(const AVCodecParameters* par) noexcept {
         LUMA_AV_ASSERT(par);
         LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par));
-        return luma::av::outcome::success();
+        return luma_av::outcome::success();
     }
     result<CodecPar> GetPar() noexcept {
         return CodecPar::make(ctx_.get());
@@ -327,10 +326,10 @@ result<void> Encode(Encoder& enc, Frames const& frames, OutputIt packet_out) noe
         } else if (res.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else {
-            return luma::av::outcome::failure(res.error());
+            return luma_av::outcome::failure(res.error());
         }
     }
-    return luma::av::outcome::success();
+    return luma_av::outcome::success();
 }
 
 template <class OutputIt>
@@ -341,9 +340,9 @@ result<void> Drain(Encoder& enc, OutputIt packet_out) noexcept {
             LUMA_AV_OUTCOME_TRY(pkt, enc.ref_packet());
             *packet_out = std::move(pkt);
         } else if (res.error().value() == AVERROR_EOF) {
-            return luma::av::outcome::success();
+            return luma_av::outcome::success();
         } else {
-            return luma::av::outcome::failure(res.error());
+            return luma_av::outcome::failure(res.error());
         }
     }
 }
@@ -399,10 +398,10 @@ result<void> Decode(Decoder& dec, Packets const& packets, OutputIt frame_out) no
         } else if (res.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else {
-            return luma::av::outcome::failure(res.error());
+            return luma_av::outcome::failure(res.error());
         }
     }
-    return luma::av::outcome::success();
+    return luma_av::outcome::success();
 }
 
 template <class OutputIt>
@@ -413,9 +412,9 @@ result<void> Drain(Decoder& dec, OutputIt frame_out) noexcept {
             LUMA_AV_OUTCOME_TRY(f, dec.ref_frame());
             *frame_out = std::move(f);
         } else if (res.error().value() == AVERROR_EOF) {
-            return luma::av::outcome::success();
+            return luma_av::outcome::success();
         } else {
-            return luma::av::outcome::failure(res.error());
+            return luma_av::outcome::failure(res.error());
         }
     }
 }
@@ -483,7 +482,6 @@ const auto decode = decode_view;
 
 
 
-} // av
-} // luma
+} // luma_av
 
 #endif // LUMA_AV_CODEC_HPP

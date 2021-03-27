@@ -17,8 +17,7 @@ extern "C" {
 
 #define LUMA_AV_OUTCOME_TRY BOOST_OUTCOME_TRY
 
-namespace luma {
-namespace av {
+namespace luma_av {
 
 namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
 
@@ -57,23 +56,23 @@ namespace detail
 } // detail
 
 // Declare a global function returning a static instance of the custom category
-inline luma::av::detail::errc_category const& errc_category() noexcept {
-  static luma::av::detail::errc_category c;
+inline luma_av::detail::errc_category const& errc_category() noexcept {
+  static luma_av::detail::errc_category c;
   return c;
 }
 
 // Overload the global make_error_code() free function with our
 // custom enum. It will be found via ADL by the compiler if needed.
-inline std::error_code make_error_code(luma::av::errc e) noexcept {
+inline std::error_code make_error_code(luma_av::errc e) noexcept {
   return {static_cast<int>(e), errc_category()};
 }
 
 #ifdef LUMA_AV_NOEXCEPT_NOVALUE_POLICY
 template <class T>
-using result = luma::av::outcome::std_result<T, luma::av::error_code, luma::av::outcome::policy::terminate>;
+using result = luma_av::outcome::std_result<T, luma_av::error_code, luma_av::outcome::policy::terminate>;
 #else 
 template <class T>
-using result = luma::av::outcome::std_result<T, luma::av::error_code>;
+using result = luma_av::outcome::std_result<T, luma_av::error_code>;
 #endif // LUMA_AV_NOEXCEPT_NOVALUE_POLICY
 
 
@@ -88,9 +87,9 @@ namespace detail {
 
 inline result<void> as_result(int ffmpeg_code) noexcept {
   if (ffmpeg_code == 0) {
-    return luma::av::outcome::success();
+    return luma_av::outcome::success();
   } else {
-    return luma::av::make_error_code(luma::av::errc{ffmpeg_code});
+    return luma_av::make_error_code(luma_av::errc{ffmpeg_code});
   }
 }
 
@@ -101,8 +100,8 @@ inline result<void> ffmpeg_code_to_result(int ffmpeg_code) noexcept {
 } // detail
 
 #define LUMA_AV_OUTCOME_TRY_FF(statement) \
-LUMA_AV_OUTCOME_TRY(std::invoke([&]()->luma::av::result<void> {  \
-    return luma::av::detail::ffmpeg_code_to_result(statement);  \
+LUMA_AV_OUTCOME_TRY(std::invoke([&]()->luma_av::result<void> {  \
+    return luma_av::detail::ffmpeg_code_to_result(statement);  \
 })) 
 /**
 and if u want the result for some reason i say just call ffmpeg_code_to_result urself
@@ -115,15 +114,14 @@ but also cause the ffmpeg call is more direct
 */
 
 
-} // av
-} // luma
+} // luma_av
 
 
 namespace std
 {
   // Tell the C++ 11 STL metaprogramming that enum ConversionErrc
   // is registered with the standard error code system
-  template <> struct is_error_code_enum<luma::av::errc> : true_type
+  template <> struct is_error_code_enum<luma_av::errc> : true_type
   {
   };
 } // std

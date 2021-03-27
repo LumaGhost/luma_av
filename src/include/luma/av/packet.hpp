@@ -12,8 +12,7 @@ extern "C" {
 
 // https://ffmpeg.org/doxygen/3.2/group__lavc__packet.html
 
-namespace luma {
-namespace av {
+namespace luma_av {
 
 class packet {
 
@@ -38,7 +37,7 @@ class packet {
             av_init_packet(pkt);
             return unique_pkt{pkt};
         } else {
-            return luma::av::make_error_code(errc::alloc_failure);
+            return luma_av::make_error_code(errc::alloc_failure);
         }
     }
 
@@ -113,7 +112,6 @@ class packet {
 
 };
 
-} // av
-} // luma
+} // luma_av
 
 #endif 

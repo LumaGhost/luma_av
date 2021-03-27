@@ -13,8 +13,7 @@ extern "C" {
 #include <luma/av/packet.hpp>
 #include <luma/av/result.hpp>
 
-namespace luma {
-namespace av {
+namespace luma_av {
 
 /*
 Most importantly an AVFormatContext contains:
@@ -57,7 +56,7 @@ class format_context {
         if (ctx) {
             return unique_fctx{ctx};
         } else {
-            return luma::av::make_error_code(errc::alloc_failure);
+            return luma_av::make_error_code(errc::alloc_failure);
         }
     }
 
@@ -176,7 +175,6 @@ namespace views {
 const auto read_input = read_input_view;
 } // views
 
-} // av
-} // luma
+} // luma_av
 
 #endif // LUMA_AV_FORMAT_HPP

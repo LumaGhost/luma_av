@@ -12,9 +12,8 @@
 #include <luma/av/format.hpp>
 #include <luma/av/util.hpp>
 
-using namespace luma::av;
 using namespace luma_av;
-using namespace luma::av::views;
+using namespace luma_av::views;
 
 static result<Decoder> DefaultDecoder(std::string const& codec_name) {
     LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name.c_str()));
@@ -176,7 +175,7 @@ TEST(codec, read_transcode_ranges2) {
             if (pkt) {
                 packets.emplace(std::move(pkt.value().get()));
             } else if (pkt.error().value() == AVERROR_EOF) {
-                packets.emplace(luma::av::errc::end);
+                packets.emplace(luma_av::errc::end);
                 return;
             } else {
                 packets.emplace(pkt.error());
@@ -209,10 +208,10 @@ TEST(codec, read_transcode_ranges2) {
                 out_packets.push_back(std::move(pkt.value().get()));
             } else if (pkt.error().value() == AVERROR(EAGAIN)) {
                 continue;
-            } else if (pkt.error() == luma::av::errc::end) {
+            } else if (pkt.error() == luma_av::errc::end) {
                 return std::move(out_packets);
             } else {
-                return luma::av::outcome::failure(pkt.error());
+                return luma_av::outcome::failure(pkt.error());
             }
         }
     });

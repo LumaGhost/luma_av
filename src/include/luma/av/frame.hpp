@@ -14,8 +14,7 @@ extern "C" {
 
 #include <luma/av/result.hpp>
 
-namespace luma {
-namespace av {
+namespace luma_av {
 
 class Buffer {
     struct AVBuffDeleter {
@@ -37,7 +36,7 @@ class Buffer {
     static result<Buffer> make(std::size_t size) noexcept {
         auto buff = static_cast<uint8_t*>(av_malloc(size));
         if (!buff) {
-            return luma::av::outcome::failure(luma::av::errc::alloc_failure);
+            return luma_av::outcome::failure(luma_av::errc::alloc_failure);
         }
         return Buffer{buff, size};
     }
@@ -81,7 +80,7 @@ class Frame {
         if (frame) {
             return unique_frame{frame};
         } else {
-            return luma::av::make_error_code(errc::alloc_failure);
+            return luma_av::make_error_code(errc::alloc_failure);
         }
     }
 
@@ -143,7 +142,7 @@ class Frame {
         av_frame_unref(frame_.get());
         LUMA_AV_OUTCOME_TRY_FF(av_frame_get_buffer(frame_.get(), align));
         buff_par_ = par;
-        return luma::av::outcome::success();
+        return luma_av::outcome::success();
     }
 
     static result<This> make() noexcept {
@@ -164,7 +163,7 @@ class Frame {
     static result<This> make(const AVFrame* in_frame, shallow_copy_t) noexcept {
         auto* new_frame = av_frame_clone(in_frame);
         if (!new_frame) {
-            return luma::av::outcome::failure(errc::alloc_failure);
+            return luma_av::outcome::failure(errc::alloc_failure);
         }
         return This{new_frame};
     }
@@ -188,9 +187,9 @@ class Frame {
         auto buff_size =  av_image_get_buffer_size(video_params.format, 
                                 video_params.width, video_params.height, video_params.alignment);
         if (buff_size < 0) {
-            return luma::av::errc{buff_size};
+            return luma_av::errc{buff_size};
         }
-        return luma::av::outcome::success(buff_size);
+        return luma_av::outcome::success(buff_size);
     }
 
     result<Buffer> CopyToImageBuffer() const noexcept {
@@ -217,7 +216,7 @@ class Frame {
         }
         LUMA_AV_OUTCOME_TRY_FF(av_frame_ref(dst.frame_.get(), src.frame_.get()));
         dst.buff_par_ = src.buff_par_;
-        return luma::av::outcome::success();
+        return luma_av::outcome::success();
     }
     public:
 
@@ -265,7 +264,7 @@ class Frame {
     result<void> MakeWritable() noexcept {
         assert(buff_par_);
         LUMA_AV_OUTCOME_TRY_FF(av_frame_make_writable(frame_.get()));
-        return luma::av::outcome::success();
+        return luma_av::outcome::success();
     }
 
     AVFrame* get() noexcept {
@@ -277,7 +276,6 @@ class Frame {
 
 };
 
-} // av
-} // luma
+} // luma_av
 
 #endif // LUMA_AV_FRAME_HPP

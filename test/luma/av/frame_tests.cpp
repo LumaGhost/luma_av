@@ -4,7 +4,7 @@
 #include <luma/av/codec.hpp>
 #include <gtest/gtest.h>
 
-using namespace luma::av;
+using namespace luma_av;
 
 
 /**

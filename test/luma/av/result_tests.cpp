@@ -6,10 +6,10 @@
 
 #include <gtest/gtest.h>
 
-using namespace luma::av;
+using namespace luma_av;
 
 TEST(result_unit, outcome_example) {
-  std::error_code ec = luma::av::errc::success;
+  std::error_code ec = luma_av::errc::success;
 
   std::cout << "printed by std::error_code as "
     << ec << " with explanatory message " << ec.message() << std::endl;
@@ -25,7 +25,7 @@ TEST(result_unit, outcome_example) {
 }
 
 TEST(result_unit, success) {
-  auto r = result<void>{luma::av::outcome::success()};
+  auto r = result<void>{luma_av::outcome::success()};
   ASSERT_TRUE(r);
   r.value();
 }

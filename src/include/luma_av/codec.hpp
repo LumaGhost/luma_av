@@ -11,11 +11,10 @@ extern "C" {
 
 #include <memory>
 
-#include <luma/av/result.hpp>
-#include <luma/av/frame.hpp>
-#include <luma/av/detail/unique_or_null.hpp>
-#include <luma/av/packet.hpp>
-#include <luma/av/util.hpp>
+#include <luma_av/result.hpp>
+#include <luma_av/frame.hpp>
+#include <luma_av/packet.hpp>
+#include <luma_av/util.hpp>
 
 /*
 https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e025894b1fc307a

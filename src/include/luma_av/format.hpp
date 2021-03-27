@@ -10,8 +10,8 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-#include <luma/av/packet.hpp>
-#include <luma/av/result.hpp>
+#include <luma_av/packet.hpp>
+#include <luma_av/result.hpp>
 
 namespace luma_av {
 

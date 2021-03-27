@@ -5,12 +5,12 @@
 #include <queue>
 #include <vector>
 
-#include <luma/av/codec.hpp>
+#include <luma_av/codec.hpp>
 
 #include <gtest/gtest.h>
 
-#include <luma/av/format.hpp>
-#include <luma/av/util.hpp>
+#include <luma_av/format.hpp>
+#include <luma_av/util.hpp>
 
 using namespace luma_av;
 using namespace luma_av::views;

@@ -7,8 +7,7 @@ extern "C" {
 
 #include <memory>
 
-#include <luma/av/result.hpp>
-#include <luma/av/detail/unique_or_null.hpp>
+#include <luma_av/result.hpp>
 
 // https://ffmpeg.org/doxygen/3.2/group__lavc__packet.html
 

@@ -1,7 +1,7 @@
 
-#include <luma/av/frame.hpp>
+#include <luma_av/frame.hpp>
 
-#include <luma/av/codec.hpp>
+#include <luma_av/codec.hpp>
 #include <gtest/gtest.h>
 
 using namespace luma_av;

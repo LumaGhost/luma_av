@@ -78,7 +78,7 @@ class CodecPar {
     unique_par par_;
     explicit CodecPar(AVCodecParameters* par) : par_{par} {}
     public:
-
+    using ffmpeg_ptr_type = AVCodecParameters*;
     static result<CodecPar> make() noexcept {
         LUMA_AV_OUTCOME_TRY(par, alloc_codec_par());
         return CodecPar{par.release()};
@@ -163,25 +163,22 @@ class CodecContext {
         return CodecContext{ctx.release(), codec};
     }
 
-    static result<CodecContext> make(const cstr_view codec_name, const AVCodecParameters* par) noexcept {
+    static result<CodecContext> make(const cstr_view codec_name, const NonOwning<CodecPar> par) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
         LUMA_AV_ASSERT(par);
         LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
         return std::move(ctx);
     }
-    static result<CodecContext> make(enum AVCodecID id, const AVCodecParameters* par) noexcept {
+    static result<CodecContext> make(enum AVCodecID id, const NonOwning<CodecPar> par) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id));
         LUMA_AV_ASSERT(par);
         LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
         return std::move(ctx);
     }
 
-    result<void> SetPar(CodecPar const& par) noexcept {
-        return SetPar(par.get());
-    }
-    result<void> SetPar(const AVCodecParameters* par) noexcept {
+    result<void> SetPar(const NonOwning<CodecPar> par) noexcept {
         LUMA_AV_ASSERT(par);
-        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par));
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par.ptr()));
         return luma_av::outcome::success();
     }
     result<CodecPar> GetPar() noexcept {
@@ -271,6 +268,26 @@ class Encoder {
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Encoder{std::move(ctx), std::move(pkt)};
     }
+    static result<Encoder> make(const cstr_view codec_name, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
+        return Encoder::make(std::move(ctx), options);
+    }
+    static result<Encoder> make(const cstr_view codec_name, 
+                                const NonOwning<CodecPar> par, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name, par));
+        return Encoder::make(std::move(ctx), options);
+    }
+    static result<Encoder> make(enum AVCodecID id, AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id));
+        return Encoder::make(std::move(ctx), options);
+    }
+    static result<Encoder> make(enum AVCodecID id, const NonOwning<CodecPar> par, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id, par));
+        return Encoder::make(std::move(ctx), options);
+    }
     // not using any of the send_packet overloads to drain
     //  i want all those overloads to mean the same thing. im not even calling them here
     //  those overloads are just to send packets. the meaning of passing nullptr is
@@ -355,6 +372,26 @@ class Decoder {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
         LUMA_AV_OUTCOME_TRY(f, Frame::make());
         return Decoder{std::move(ctx), std::move(f)};
+    }
+    static result<Decoder> make(const cstr_view codec_name, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
+        return Decoder::make(std::move(ctx), options);
+    }
+    static result<Decoder> make(const cstr_view codec_name, 
+                                const NonOwning<CodecPar> par, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name, par));
+        return Decoder::make(std::move(ctx), options);
+    }
+    static result<Decoder> make(enum AVCodecID id, AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id));
+        return Decoder::make(std::move(ctx), options);
+    }
+    static result<Decoder> make(enum AVCodecID id, const NonOwning<CodecPar> par, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(id, par));
+        return Decoder::make(std::move(ctx), options);
     }
 
     result<void> start_draining() noexcept {

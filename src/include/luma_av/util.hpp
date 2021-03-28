@@ -23,6 +23,10 @@ class final_action {
     ~final_action() noexcept {
         std::invoke(std::move(f_));
     }
+    final_action(final_action const&) = delete;
+    final_action& operator=(final_action const&) = delete;
+    final_action(final_action&&) = delete;
+    final_action& operator=(final_action&&) = delete;
 
     private:
     F f_;
@@ -83,18 +87,22 @@ namespace detail {
     concept SmartPtr = requires(U ptr) {
         { ptr.get() } -> std::convertible_to<T>;
     } && std::is_pointer_v<T>;
+    template<class T>
+    concept FFmpegWrapper = requires(T t) {
+        { t.get() } -> std::convertible_to<typename T::ffmpeg_ptr_type>;
+    };
 };
-template <class T>
-class AnyPtr {
+template <detail::FFmpegWrapper T>
+class NonOwning {
     public:
-    using type = std::remove_cv_t<T>;
-    using pointer = type*;
+    using pointer = std::decay_t<typename T::ffmpeg_ptr_type>;
     using const_pointer = const pointer;
-    template <detail::SmartPtr<pointer> U>
-    /*implicit*/ AnyPtr(U const& u) : ptr_{u.get()} {
-        LUMA_AV_ASSERT(ptr_);
+    /*implicit*/ NonOwning(T const& t) : ptr_{t.get()} {
     }
-    /*implicit*/ AnyPtr(pointer ptr) : ptr_{ptr} {
+    // /*implicit*/ NonOwning(pointer ptr) : ptr_{ptr} {
+    //     LUMA_AV_ASSERT(ptr_);
+    // }
+    /*implicit*/ NonOwning(const_pointer ptr) : ptr_{ptr} {
         LUMA_AV_ASSERT(ptr_);
     }
     const_pointer ptr() const noexcept {
@@ -114,7 +122,7 @@ namespace luma_av_literals {
 inline luma_av::cstr_view operator ""_cv (const char* cstr, std::size_t) noexcept {
     return luma_av::cstr_view{cstr};
 }
-};
+} // luma_av_literals
 
 
 

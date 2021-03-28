@@ -162,8 +162,8 @@ TEST(codec, read_transcode_ranges2) {
 
     auto reader = Reader::make("input_url"_cv).value();
 
-    auto dec = DefaultDecoder("h264").value();
-    auto enc = DefaultEncoder("h264").value();
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
 
     std::vector<packet> out_pkts;
     out_pkts.reserve(5);

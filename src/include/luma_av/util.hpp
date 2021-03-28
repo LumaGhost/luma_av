@@ -15,6 +15,7 @@
 namespace luma_av {
 namespace detail {
 
+// based on https://github.com/microsoft/GSL/blob/v2.1.0/include/gsl/gsl_util#L57
 template <std::invocable F>
 class final_action {
     public:
@@ -40,6 +41,7 @@ auto finally(F&& f) noexcept {
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
 inline [[noreturn]] void terimate(const std::source_location& location 
                                     = std::source_location::current()) noexcept {
+    // https://en.cppreference.com/w/cpp/utility/source_location
     std::cerr << "luma_av assertion failure: "
               << location.file_name() << "("
               << location.line() << ":"
@@ -55,6 +57,7 @@ inline [[noreturn]] void terimate() noexcept {
 
 } // detail
 
+// based on https://github.com/microsoft/GSL/blob/v2.1.0/include/gsl/gsl_assert#L154
 #if defined(__clang__) || defined(__GNUC__)
 #define LUMA_AV_LIKELY(x) __builtin_expect(!!(x), 1)
 #else

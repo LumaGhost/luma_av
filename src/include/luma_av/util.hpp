@@ -40,7 +40,7 @@ auto finally(F&& f) noexcept {
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
 inline [[noreturn]] void terimate(const std::source_location& location 
                                     = std::source_location::current()) noexcept {
-    std::cerr << "assertion failure: "
+    std::cerr << "luma_av assertion failure: "
               << location.file_name() << "("
               << location.line() << ":"
               << location.column() << ") `"

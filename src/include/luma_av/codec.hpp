@@ -302,7 +302,7 @@ class Encoder {
         return detail::ffmpeg_code_to_result(ec);
     }
     // if the user doesnt want their own packet after encoding the frame
-    packet& view_packet() noexcept {
+    packet const& view_packet() noexcept {
         return encoder_packet_;
     }
     // if they do want their own packet
@@ -391,7 +391,7 @@ class Decoder {
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    Frame& view_frame() noexcept {
+    Frame const& view_frame() noexcept {
         return decoder_frame_;
     }
 
@@ -441,16 +441,16 @@ result<void> Drain(Decoder& dec, OutputIt frame_out) noexcept {
 struct EncClosure {
     Encoder& enc;
     template<class F>
-    result<std::reference_wrapper<packet>> operator()(result<F> const& frame_res) noexcept {
+    result<std::reference_wrapper<const packet>> operator()(result<F> const& frame_res) noexcept {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
         return EncodeImpl(frame);
     }
     template<class F>
-    result<std::reference_wrapper<packet>> operator()(F const& frame) noexcept {
+    result<std::reference_wrapper<const packet>> operator()(F const& frame) noexcept {
         return EncodeImpl(frame);
     }
     template<class F>
-    result<std::reference_wrapper<packet>> EncodeImpl(F const& frame) noexcept {
+    result<std::reference_wrapper<const packet>> EncodeImpl(F const& frame) noexcept {
         LUMA_AV_OUTCOME_TRY(enc.send_frame(frame));
         LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
         return enc.view_packet();
@@ -469,17 +469,17 @@ const auto encode = encode_view;
 struct DecClosure {
     Decoder& dec;
     template<class Pkt>
-    result<std::reference_wrapper<Frame>> operator()(result<Pkt> const& packet_res) noexcept {
+    result<std::reference_wrapper<const Frame>> operator()(result<Pkt> const& packet_res) noexcept {
         LUMA_AV_OUTCOME_TRY(packet, packet_res);
         return DecodeImpl(packet);
     }
     template<class Pkt>
-    result<std::reference_wrapper<Frame>> operator()(Pkt const& packet) noexcept {
+    result<std::reference_wrapper<const Frame>> operator()(Pkt const& packet) noexcept {
         return DecodeImpl(packet);
     }
 
     template<class Pkt>
-    result<std::reference_wrapper<Frame>> DecodeImpl(Pkt const& packet) noexcept {
+    result<std::reference_wrapper<const Frame>> DecodeImpl(Pkt const& packet) noexcept {
         LUMA_AV_OUTCOME_TRY(dec.send_packet(packet));
         LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
         return dec.view_frame();

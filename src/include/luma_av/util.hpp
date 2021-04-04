@@ -91,27 +91,22 @@ namespace detail {
         { ptr.get() } -> std::convertible_to<T>;
     } && std::is_pointer_v<T>;
     template<class T>
-    concept FFmpegWrapper = requires(T t) {
+    concept FFmpegWrapper = requires(const T t) {
         { t.get() } -> std::convertible_to<typename T::ffmpeg_ptr_type>;
     };
 };
-template <detail::FFmpegWrapper T>
+template <class T>
 class NonOwning {
     public:
     using pointer = std::decay_t<typename T::ffmpeg_ptr_type>;
     using const_pointer = const pointer;
     /*implicit*/ NonOwning(T const& t) : ptr_{t.get()} {
+        static_assert(detail::FFmpegWrapper<T>);
     }
-    // /*implicit*/ NonOwning(pointer ptr) : ptr_{ptr} {
-    //     LUMA_AV_ASSERT(ptr_);
-    // }
     /*implicit*/ NonOwning(const_pointer ptr) : ptr_{ptr} {
         LUMA_AV_ASSERT(ptr_);
     }
     const_pointer ptr() const noexcept {
-        return ptr_;
-    }
-    pointer ptr() noexcept {
         return ptr_;
     }
     private:

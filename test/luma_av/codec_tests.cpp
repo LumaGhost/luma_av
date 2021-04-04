@@ -188,7 +188,7 @@ TEST(codec, read_transcode_ranges2) {
     auto dec_fut = std::async([&]() -> void {
         for (const auto frame : queue_pop_view(packets) | decode(dec)) {
             if (frame) {
-                frames.emplace(std::move(frame.value().get()));
+                frames.emplace(Frame::make(frame.value().get(), Frame::shallow_copy));
             } else if (frame.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else {
@@ -206,7 +206,7 @@ TEST(codec, read_transcode_ranges2) {
         std::vector<packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(std::move(pkt.value().get()));
+                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
             } else if (pkt.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else if (pkt.error() == luma_av::errc::end) {

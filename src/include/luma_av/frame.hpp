@@ -13,6 +13,7 @@ extern "C" {
 #include <variant>
 
 #include <luma_av/result.hpp>
+#include <luma_av/util.hpp>
 
 namespace luma_av {
 
@@ -44,6 +45,9 @@ class Buffer {
     uint8_t* data() noexcept {
         return buff_.get();
     }
+    const uint8_t* data() const noexcept {
+        return buff_.get();
+    }
 
     std::size_t size() const noexcept {
         return view_.size();
@@ -54,8 +58,11 @@ class Buffer {
     }
 
 
-    std::span<uint8_t>& view() noexcept {
+    std::span<uint8_t> view() noexcept {
         return view_;
+    }
+    std::span<const uint8_t> view() const noexcept {
+        return {view_.data(), view_.size()};
     }
 
 };
@@ -130,7 +137,14 @@ class Frame {
 
 
     public:
+    AVFrame* get() noexcept {
+        return frame_.get();
+    }
+    const AVFrame* get() const noexcept {
+        return frame_.get();
+    }
 
+    using ffmpeg_ptr_type = const AVFrame*;
     Frame(Frame const&) = delete;
     Frame& operator=(Frame const&) = delete;
     Frame(Frame&&) noexcept = default;
@@ -160,8 +174,8 @@ class Frame {
 
     // same here. need a way to know if we need to initialize the buffer params
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
-    static result<This> make(const AVFrame* in_frame, shallow_copy_t) noexcept {
-        auto* new_frame = av_frame_clone(in_frame);
+    static result<This> make(const NonOwning<Frame> in_frame, shallow_copy_t) noexcept {
+        auto* new_frame = av_frame_clone(in_frame.ptr());
         if (!new_frame) {
             return luma_av::outcome::failure(errc::alloc_failure);
         }
@@ -266,14 +280,6 @@ class Frame {
         LUMA_AV_OUTCOME_TRY_FF(av_frame_make_writable(frame_.get()));
         return luma_av::outcome::success();
     }
-
-    AVFrame* get() noexcept {
-        return frame_.get();
-    }
-    const AVFrame* get() const noexcept {
-        return frame_.get();
-    }
-
 };
 
 } // luma_av

@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include <luma_av/format.hpp>
+#include <luma_av/swscale.hpp>
 #include <luma_av/util.hpp>
 
 using namespace luma_av;
@@ -218,4 +219,29 @@ TEST(codec, read_transcode_ranges2) {
     });
 
     auto pkts = enc_fut.get().value();
+}
+
+
+TEST(codec, read_transcode_scale_ranges) {
+
+    auto reader = Reader::make("input_url"_cv).value();
+
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
+    auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    for (auto const& pkt : read_input(reader) | decode(dec) | scale(sws) | encode(enc)) {
+        if (pkt) {
+            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+        } else if (pkt.error().value() == AVERROR(EAGAIN)) {
+            continue;
+        } else if (pkt.error().value() == AVERROR_EOF) {
+            break;
+        } else {
+            throw std::system_error{pkt.error()};
+        }
+    }
 }

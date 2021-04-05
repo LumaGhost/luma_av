@@ -27,6 +27,7 @@ enum class errc : int
   eof         = AVERROR_EOF,
   codec_not_found = 1, 
   alloc_failure = AVERROR(ENOMEM),
+  scale_init_failure,
   end, // no more data will be sent
   again // no data yet but if u send again u may get some
 };

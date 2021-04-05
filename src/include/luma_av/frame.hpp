@@ -134,7 +134,12 @@ class Frame {
     unique_frame frame_;
     std::optional<FrameBufferParams> buff_par_;
 
-
+    
+    // just gona say ub if its not actually an image
+    // in practice i'll just terminate
+    VideoParams const& video_params() const noexcept {
+        return std::get<VideoParams>(buff_par_.value());
+    }
 
     public:
     AVFrame* get() noexcept {
@@ -186,12 +191,6 @@ class Frame {
         LUMA_AV_OUTCOME_TRY(frame, This::make());
         LUMA_AV_OUTCOME_TRY(frame.alloc_buffer(par));
         return std::move(frame);
-    }
-
-    // just gona say ub if its not actually an image
-    // in practice i'll just terminate
-    VideoParams const& video_params() const noexcept {
-        return std::get<VideoParams>(buff_par_.value());
     }
 
     // https://ffmpeg.org/doxygen/trunk/group__lavu__picture.html#ga5b6ead346a70342ae8a303c16d2b3629
@@ -280,6 +279,37 @@ class Frame {
         LUMA_AV_OUTCOME_TRY_FF(av_frame_make_writable(frame_.get()));
         return luma_av::outcome::success();
     }
+
+    uint8_t** data() noexcept {
+        assert(buff_par_);
+        return frame_.get()->data;
+    }
+
+    const uint8_t* const* data() const noexcept {
+        assert(buff_par_);
+        return frame_.get()->data;
+    }
+
+    int* linesize() noexcept {
+        assert(buff_par_);
+        return frame_.get()->linesize;
+    }
+
+    const int* linesize() const noexcept {
+        assert(buff_par_);
+        return frame_.get()->linesize;
+    }
+
+    int width() const noexcept {
+        return video_params().width;
+    }
+    int height() const noexcept {
+        return video_params().height;
+    }
+    AVPixelFormat pix_fmt() const noexcept {
+        return video_params().format;
+    }
+
 };
 
 } // luma_av

@@ -38,6 +38,11 @@ auto finally(F&& f) noexcept {
     return final_action<std::decay_t<F>>{std::forward<F>(f)};
 }
 
+template <class Enum>
+constexpr auto ToUnderlying(Enum e) noexcept -> std::underlying_type_t<Enum> {
+    return static_cast<std::underlying_type_t<Enum>>(e);
+}
+
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
 inline [[noreturn]] void terimate(const std::source_location& location 
                                     = std::source_location::current()) noexcept {
@@ -94,7 +99,7 @@ namespace detail {
     concept FFmpegWrapper = requires(const T t) {
         { t.get() } -> std::convertible_to<typename T::ffmpeg_ptr_type>;
     };
-};
+} // detail
 template <class T>
 class NonOwning {
     public:

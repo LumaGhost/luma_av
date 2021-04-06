@@ -497,8 +497,7 @@ const auto decode = decode_view;
 
 
 // i dont understand why these specific concepts
-template <std::ranges::input_range R>
-requires std::ranges::view<R>
+template <std::ranges::view R>
 class decode_view2 : public std::ranges::view_interface<decode_view2<R>> {
 public:
 decode_view2() noexcept = default;
@@ -559,8 +558,7 @@ static auto end_impl(Self& self) {
 
 // not sure exactly why u do the guide this way but ik tldr "all_view makes this work with more types nicely"
 //  also ofc we dont want to generate a bunch of classes for all the different forwarding refs so we strip that
-template <std::ranges::input_range R>
-requires std::ranges::viewable_range<R>
+template <std::ranges::viewable_range R>
 decode_view2(R&&, Decoder&) -> decode_view2<std::ranges::views::all_t<R>>;
 
 namespace detail {
@@ -570,19 +568,23 @@ using MaybeConst_t = std::conditional_t<is_const, const T, T>;
 
 } // detail
 
-template <std::ranges::input_range R>
-requires std::ranges::view<R>
+template <std::ranges::view R>
 template <bool is_const>
 class decode_view2<R>::iterator {
+    // public:
+    // this alias is my own
+    using output_type = result<std::reference_wrapper<const Frame>>;
+    // private:
     using parent_t = detail::MaybeConst_t<is_const, decode_view2<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;
 
     parent_t* parent_ = nullptr;
-    std::ranges::iterator_t<base_t> current_{};
-    bool draining_ = false;
-    bool done_draining_ = false;
-    std::ptrdiff_t skip_count_{0};
+    mutable std::ranges::iterator_t<base_t> current_{};
+    mutable bool draining_ = false;
+    mutable bool done_draining_ = false;
+    mutable std::ptrdiff_t skip_count_{0};
+    mutable std::optional<output_type> cached_frame_;
     // other impl details to manage the iterating
     // in the video they use a step value
 
@@ -592,14 +594,13 @@ class decode_view2<R>::iterator {
 
     // they bring compute distance here too
 
-// this alias is my own
-using output_type = result<std::reference_wrapper<const Frame>>;
 public:
 
 using difference_type = std::ranges::range_difference_t<base_t>;
 // not sure what our value type is. think its the frame reference from out of the decoder
 using value_type = output_type;
-// using iterator_category = not sure yet
+// uncommenting causes a build failure oops ???
+// using iterator_category = std::input_iterator_tag;
 
 iterator() = default;
 
@@ -620,14 +621,28 @@ std::ranges::iterator_t<base_t> base() const {
 
 // this is where we're actually allowed to do work
 // skipping elements from the prev view is ok. incrementing during operator* may not be pog
-output_type operator*() {
+// so deref is required to be const. but like... p sure that means equality preserving const?
+// there is nothing i could do to make this thread safe anyway. like regardless
+// pushing frames into the decoder isnt thread safe
+output_type operator*() const {
+    // means deref end/past the end if this hits
     LUMA_AV_ASSERT(!done_draining_);
+    // i fucked up my counter logic if this fires
+    LUMA_AV_ASSERT(skip_count_ >= -1);
+    // if the user hasnt incremented we just want to return the last frame if there is one
+    //  that way *it == *it is true
+    if ((skip_count_== -1) && (cached_frame_)) {
+        return *cached_frame_;
+    }
     auto& dec = parent_->decoder();
-    for(;current_!=std::ranges::end(base_); ++current_) {
+    for(;current_!=std::ranges::end(parent_->base_); ++current_) {
         LUMA_AV_OUTCOME_TRY(dec.send_packet(*current_));
         if (auto res = dec.recieve_frame()) {
             if (skip_count_ == 0) {
-                return dec.view_frame();
+                auto out = output_type{dec.view_frame()};
+                cached_frame_ = out;
+                skip_count_ -= 1;
+                return out;
             } else {
                 skip_count_ -= 1;
                 continue;
@@ -648,7 +663,10 @@ output_type operator*() {
     while(true) {
         if (auto res = dec.recieve_frame()) {
             if (skip_count_ == 0) {
-                return dec.view_frame();
+                auto out = output_type{dec.view_frame()};
+                cached_frame_ = out;
+                skip_count_ -= 1;
+                return out;
             } else {
                 skip_count_ -= 1;
                 continue;
@@ -771,7 +789,9 @@ requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
 
 // they have these in the video not sure what our impl would look like
 // shortcuts for swap(*iter, *iter) and std::move(*iter);
-// friend std::ranges::range_rvalue_reference_t<R> iter_move(iterator const&);
+// friend auto iter_move(iterator& it) {
+//     return *it;
+// }
 // friend void iter_swap(iterator const&, iterator const&)
 // requires std::ranges::indirectly_swapable<iterator>;
 
@@ -780,6 +800,80 @@ requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
 //  we're going to need a sentinel. 
 
 };
+
+namespace detail {
+
+inline const auto filter_uwu_view = std::views::filter([](const auto& res){
+    if (res) {
+        return true;
+    } else if (res.error() == errc::decode_range_end) {
+        return false;
+    } else {
+        return true;
+    }
+});
+
+inline const auto filter_uwu = filter_uwu_view;
+
+
+template <class F>
+class decode_range_adaptor_closure {
+    F f_;
+    Decoder* dec_;
+    public:
+    decode_range_adaptor_closure(F f, Decoder& dec) 
+        : f_{std::move(f)}, dec_{std::addressof(dec)} {
+
+    }
+    template <std::ranges::viewable_range R>
+    decltype(auto) operator()(R&& r) {
+        return std::invoke(f_, std::forward<R>(r), *dec_);
+    }
+
+    template <std::ranges::viewable_range R>
+    decltype(auto) operator()(R&& r) const {
+         return std::invoke(f_, std::forward<R>(r), *dec_);
+    }
+    // template <std::ranges::input_range R>
+    // requires std::ranges::viewable_range<R>
+    // template <class R>
+    // friend decltype(auto) operator|(R&& r, decode_range_adaptor_closure&& closure) {
+    //     return std::invoke(std::move(closure), std::forward<R>(r));
+    // }
+    // template <class R>
+    // friend decltype(auto) operator|(decode_range_adaptor_closure const& closure, R&& r) {
+    //     return std::invoke(closure, std::forward<R>(r));
+    // }
+    // template <class R>
+    // friend decltype(auto) operator|(decode_range_adaptor_closure const& closure, R&& r);
+};
+
+template <class F, std::ranges::viewable_range R>
+decltype(auto) operator|(R&& r, decode_range_adaptor_closure<F> const& closure) {
+    return closure(std::forward<R>(r));
+}
+
+
+class decode_view_fn {
+public:
+template <class R>
+auto operator()(R&& r, Decoder& dec) const {
+    return decode_view2{std::views::all(std::forward<R>(r)), dec} | filter_uwu;
+    // return decode_view2{std::views::all(std::forward<R>(r)), dec};
+}
+auto operator()(Decoder& dec) const {
+    return decode_range_adaptor_closure<decode_view_fn>{decode_view_fn{}, dec};
+}
+};
+
+inline const auto decode2 = decode_view_fn{};
+
+} // detail
+
+
+namespace views {
+const auto real_decode = detail::decode_view_fn{};
+} // views
 
 
 

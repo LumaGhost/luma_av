@@ -514,8 +514,7 @@ auto decoder() const noexcept -> Decoder& {
     return *dec_;
 }
 
-// we prob wont have const qualified begin
-// eventhough begin must be constant time we are allowed to do a linear operation then cache it. 
+// i dont think our view can be const qualified but im leaving these for now just in case
 auto begin() {
     return iterator<false>{*this};
 }
@@ -523,11 +522,14 @@ auto begin() const {
     return iterator<true>{*this};
 }
 
+// we steal the end sentinel from the base range and use our operator== to handle
+//  deciding when to end. we should prob have our own sentinel to avoid extra overloads
+//  and potential caveats but idk how
 auto end() {
-    return end_impl(*this);
+    return std::ranges::end(self.base_);
 }
 auto end() const {
-    return end_impl(*this);
+    return std::ranges::end(self.base_);
 }
 
 // we only require a sized range if the user actaully calls .size
@@ -542,17 +544,6 @@ Decoder* dec_ = nullptr;
 
 template <bool is_const>
 class iterator;
-
-// not sure exactly why static member but im following along
-template <class Self>
-static auto end_impl(Self& self) {
-    // their impl is calling end on the base
-    // ik that wont be right for me but im following along for now
-    return std::ranges::end(self.base_);
-}
-
-// they also added a "compute distance" helper to help calculate the number of elements remaining or something
-//  dont think we're actually going to be a sized range so not sure if that applies to us
 
 };
 
@@ -571,10 +562,7 @@ using MaybeConst_t = std::conditional_t<is_const, const T, T>;
 template <std::ranges::view R>
 template <bool is_const>
 class decode_view2<R>::iterator {
-    // public:
-    // this alias is my own
     using output_type = result<std::reference_wrapper<const Frame>>;
-    // private:
     using parent_t = detail::MaybeConst_t<is_const, decode_view2<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;
@@ -585,14 +573,6 @@ class decode_view2<R>::iterator {
     mutable bool done_draining_ = false;
     mutable std::ptrdiff_t skip_count_{0};
     mutable std::optional<output_type> cached_frame_;
-    // other impl details to manage the iterating
-    // in the video they use a step value
-
-    // not sure if this is their impl detail or a required function
-    //  think its theirs though
-    iterator& advance(std::ranges::range_difference_t<base_t>);
-
-    // they bring compute distance here too
 
 public:
 
@@ -619,11 +599,7 @@ std::ranges::iterator_t<base_t> base() const {
     return current_;
 }
 
-// this is where we're actually allowed to do work
-// skipping elements from the prev view is ok. incrementing during operator* may not be pog
-// so deref is required to be const. but like... p sure that means equality preserving const?
-// there is nothing i could do to make this thread safe anyway. like regardless
-// pushing frames into the decoder isnt thread safe
+// note const as in *it == *it. not const as in thread safe
 output_type operator*() const {
     // means deref end/past the end if this hits
     LUMA_AV_ASSERT(!done_draining_);
@@ -682,78 +658,6 @@ output_type operator*() const {
     
 }
 
-/**
-// can we just make ++ a no op? only * will do the incrementing as necessary
-// or does that just make this totally troll?
-// maybe incrementing can send? that would require a deref though
-// dont think thats ok
-// i feel like the noop is fine as long as it eventually returns end and doesnt break normal range stuff
-
-think this might destroy interactions with other views like take though. take would prob be implemented
-with clever incrementing. now we get into this weird thing where intuitively ur thinking abt the output
-being the decoded frames so like take(2) would take the first 2 decoded frames. thats what we want. 
-but realistically if our increment is a no op then so would take 2
-so we probably dont want to violate increment being a thing. we lose support for interacting with other ranges
-
-the next thing we can compromise on is being lazy. if we deref during the increment we wont be lazy
-but at least we can work with other ranges. tbh i think not being lazy is unacceptable. 
-
-what if increment just increments current? that doesnt rly work cause this ++ is supposed to represent
-an increment in our range. if we just increment current then we're basicly applying the "take"
-or whatever op to the packets before decoding. not what we want.
-unfortnuately theres not rly a lazy way to refer to the "next" frame that i know of
-
-afaik though this iterator needs to behave basicaly like an iterator to a vector<frame>
-like ++ needs to refer to the next frame after decoding. but we wont know until we decode
-so we rly cant express the state after decoding . e.g. with take(2)
-
-idk maybe we can do something REAAAAAAAAAALY clever with an internal counter
-like incrementing our iterator represents some filter that happens when calling *
-that may work but idk. also how does something like filter view work? i feel like our problem is similar?
-u need to deref the prev element to figure out if u actually want to iterate over it or not
-
-ok derefing in the comparison operators for the end sintenel is fair game
-https://github.com/gcc-mirror/gcc/blob/16e2427f50c208dfe07d07f18009969502c25dc8/libstdc%2B%2B-v3/include/std/ranges#L1854
-
-ok i think i have an idea. begin will return a cached frame.
-ok fuck we cant even do that cause we wont have a packet asdf.
-regardless begin ultimately has to point to a frame. or a pseudo representation of a frame
-BEFORE any derefrencing happens
-at that point begin has to just return our own iter and we abstract it
-
-ok so lets say ++ increments an internal counter. and on the deref we count frames and dont
-return until we reach the current count? then we reset the count.
-only issue there is what if we dont get enough? we can return eof
-thats getting a bit better. but i still think thatll violate some 
-guarentees that these algos want. for example how does end behave at that point?
-we have infinite/unknown amnt of elements so we should be fine?
-not quite. imagine an algo wants the 1st 3rd and 5th frame. lets say theres only 4 frames
-we'll give them the first and third but instead of a 5th frame we'll give them empty
-but it'll look like a frame. worse the algo could ask for 100 and we only have 4 frames.
-the way u handle that is i think with the end. both those scenarios i descrive should be
-invalid "increment past end" things. i think.
-i dont think i can fully avoid a blank frame at the end though.
-but i think i can abstract a filter view on top that will remove the last "empty frame"
-fuckign poggers this just may actually work. we even fit in draining. sdfkjas;dklfjaskl;dfjal;skdfj
-
-alright so to summarize. ++ just increments an internal counter. when we deref
-we will skip that many decoded frames to simulate stepping over the output frames
-if we're out of packets in the base range when we deref then we enter draining mode
-which basically just means we can read frames from the decoder without needing to supply a packet.
-so eventhough the packet range is over we can still read until we see a frame
-and ofc we still skip at the users request.
-if we still cant get a frame then we return a special error signalling that decoding is over.
-at that point we set our internal "done draining" state. our end comparison simply checks that
-state and if we're done draining then we compare true with "end" and if we're not then we dont.
-deref when we're already done draining, i.e. we compared true with end, im just firing an assertion.
-if we just let it roll, currently itd basically create an infinite loop, producing the decoding end error
-and then we'd be filtering them. so instead just fire an assertion
-
-back to the example what if the user wants 1 3 and 5 and we only have 4 frames?
-we would start with 1 3 and the decode end error, but we'd strip that off with another view
-leaving 1 and 3 which i believe is correct.
-
-*/
 iterator& operator++() {
     skip_count_ += 1;
     return *this;
@@ -773,11 +677,6 @@ requires std::ranges::forward_range<base_t> {
     return temp;
 }
 
-// in the talk they do bidirectional ranges too
-// dont think we can support that? if we get passed a bidirectional range
-//  we can still only go forward. may be wrong abt that though
-// wont have random access either afaik?
-
 bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
     return done_draining_;
 }
@@ -786,18 +685,6 @@ bool operator==(iterator const& other) const
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
     return current_ == other;
 }
-
-// they have these in the video not sure what our impl would look like
-// shortcuts for swap(*iter, *iter) and std::move(*iter);
-// friend auto iter_move(iterator& it) {
-//     return *it;
-// }
-// friend void iter_swap(iterator const&, iterator const&)
-// requires std::ranges::indirectly_swapable<iterator>;
-
-// we also wont have random access stuff afaik like front back and []
-// def wont have back cause i can p much tell off rip we wont be a common range
-//  we're going to need a sentinel. 
 
 };
 
@@ -834,18 +721,6 @@ class decode_range_adaptor_closure {
     decltype(auto) operator()(R&& r) const {
          return std::invoke(f_, std::forward<R>(r), *dec_);
     }
-    // template <std::ranges::input_range R>
-    // requires std::ranges::viewable_range<R>
-    // template <class R>
-    // friend decltype(auto) operator|(R&& r, decode_range_adaptor_closure&& closure) {
-    //     return std::invoke(std::move(closure), std::forward<R>(r));
-    // }
-    // template <class R>
-    // friend decltype(auto) operator|(decode_range_adaptor_closure const& closure, R&& r) {
-    //     return std::invoke(closure, std::forward<R>(r));
-    // }
-    // template <class R>
-    // friend decltype(auto) operator|(decode_range_adaptor_closure const& closure, R&& r);
 };
 
 template <class F, std::ranges::viewable_range R>

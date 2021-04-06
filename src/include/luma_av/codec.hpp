@@ -526,17 +526,11 @@ auto begin() const {
 //  deciding when to end. we should prob have our own sentinel to avoid extra overloads
 //  and potential caveats but idk how
 auto end() {
-    return std::ranges::end(self.base_);
+    return std::ranges::end(base_);
 }
 auto end() const {
-    return std::ranges::end(self.base_);
+    return std::ranges::end(base_);
 }
-
-// we only require a sized range if the user actaully calls .size
-//  we wont be able to give this anyway most likely so good thing its not required
-// compute distance is used to implement these in the video
-// auto size() requires std::ranges::sized_range<R>;
-// auto size() const requires std::ranges::sized_range<R>;
 
 private:
 R base_{};

@@ -276,25 +276,52 @@ TEST(codec, decode_view_messsaround) {
 
 }
 
+TEST(codec, enc_view_messsaround) {
+    auto enc = Encoder::make("h264"_cv).value();
 
-// TEST(codec, NewRangesUwU) {
+    std::vector<Frame> out_frames;
+    auto dv = encode_view2(std::views::all(out_frames), enc);
+    auto it = dv.begin();
+    ++it;
+    it++;
+    for (auto frame : dv) {
+        std::cout << "uwu" << std::endl;
+    }
 
-//     auto reader = Reader::make("input_url"_cv).value();
+    auto fn = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
+    auto dvf = fn(std::views::all(out_frames), enc);
+    auto dvfc = fn(enc);
+    auto dv2 = dvfc(std::views::all(out_frames));
 
-//     auto dec = Decoder::make("h264"_cv).value();
-//     auto enc = Encoder::make("h264"_cv).value();
-//     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+    static_assert(std::ranges::viewable_range<decltype(dv)>);
+    static_assert(std::ranges::view<decltype(dv)>);
+    static_assert(std::ranges::range<decltype(dv)>);
+    static_assert(std::ranges::input_range<decltype(dv)>);
+    auto pipe_out = std::views::all(out_frames) | encode2(enc);
+    static_assert(std::ranges::viewable_range<decltype(pipe_out)>);
+    static_assert(std::ranges::view<decltype(pipe_out)>);
+    static_assert(std::ranges::range<decltype(pipe_out)>);
+    static_assert(std::ranges::input_range<decltype(pipe_out)>);
+    auto take = std::views::all(out_frames) | encode2(enc) | std::views::take(5);
 
-//     std::vector<packet> out_pkts;
-//     out_pkts.reserve(5);
+}
 
-//     for (auto const& pkt : read_input(reader) | real_decode(dec) | scale(sws) | encode(enc)) {
-//         if (pkt) {
-//             out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
-//         } else if (pkt.error().value() == AVERROR_EOF) {
-//             break;
-//         } else {
-//             throw std::system_error{pkt.error()};
-//         }
-//     }
-// }
+
+TEST(codec, NewRangesUwU) {
+
+    auto reader = Reader::make("input_url"_cv).value();
+
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
+    auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    auto pipe = read_input(reader) | decode2(dec) | scale(sws) | encode2(enc);
+
+    for (const auto& packet : pipe) {
+        std::cout << "uwu" << std::endl;
+    }
+
+}

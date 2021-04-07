@@ -557,9 +557,10 @@ auto coder() const noexcept -> coder_type& {
 auto begin() {
     return iterator<false>{*this};
 }
-auto begin() const {
-    return iterator<true>{*this};
-}
+// think we can const qualify begin and end if the underlying range can
+// auto begin() const {
+//     return iterator<true>{*this};
+// }
 
 // we steal the end sentinel from the base range and use our operator== to handle
 //  deciding when to end. we should prob have our own sentinel to avoid extra overloads
@@ -567,9 +568,9 @@ auto begin() const {
 auto end() {
     return std::ranges::end(base_);
 }
-auto end() const {
-    return std::ranges::end(base_);
-}
+// auto end() const {
+//     return std::ranges::end(base_);
+// }
 
 private:
 R base_{};
@@ -607,7 +608,8 @@ class encdec_view_impl<EncDec, R>::iterator {
 
 public:
 
-using difference_type = std::ranges::range_difference_t<base_t>;
+// using difference_type = std::ranges::range_difference_t<base_t>;
+using difference_type = std::ptrdiff_t;
 // not sure what our value type is. think its the frame reference from out of the decoder
 using value_type = output_type;
 // uncommenting causes a build failure oops ???
@@ -714,7 +716,12 @@ bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
 
 bool operator==(iterator const& other) const 
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
-    return current_ == other;
+    return parent_->dec_ == other.parent_->dec_ &&
+    current_ == other.current_ &&
+    draining_ == other.draining_ &&
+    done_draining_ == other.done_draining_ &&
+    skip_count_ == other.skip_count_ &&
+    cached_frame_.has_value() == other.cached_frame_.has_value();
 }
 
 };
@@ -779,8 +786,8 @@ inline const auto decode_view2 = detail::encdec_view_impl_fn<detail::DecodeInter
 inline const auto encode_view2 = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
 
 namespace views {
-inline const auto decode2 = decode_view;
-inline const auto encode2 = encode_view;
+inline const auto decode2 = decode_view2;
+inline const auto encode2 = encode_view2;
 } // views
 
 

@@ -250,7 +250,7 @@ TEST(codec, decode_view_messsaround) {
     auto dec = Decoder::make("h264"_cv).value();
 
     std::vector<packet> out_pkts;
-    auto dv = decode_view2{std::views::all(out_pkts), dec};
+    auto dv = decode_view2(std::views::all(out_pkts), dec);
     auto it = dv.begin();
     ++it;
     it++;
@@ -258,7 +258,7 @@ TEST(codec, decode_view_messsaround) {
         std::cout << "uwu" << std::endl;
     }
 
-    auto fn = detail::decode_view_fn{};
+    auto fn = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
     auto dvf = fn(std::views::all(out_pkts), dec);
     auto dvfc = fn(dec);
     auto dv2 = dvfc(std::views::all(out_pkts));
@@ -267,12 +267,12 @@ TEST(codec, decode_view_messsaround) {
     static_assert(std::ranges::view<decltype(dv)>);
     static_assert(std::ranges::range<decltype(dv)>);
     static_assert(std::ranges::input_range<decltype(dv)>);
-    auto pipe_out = std::views::all(out_pkts) | detail::decode2(dec);
+    auto pipe_out = std::views::all(out_pkts) | decode2(dec);
     static_assert(std::ranges::viewable_range<decltype(pipe_out)>);
     static_assert(std::ranges::view<decltype(pipe_out)>);
     static_assert(std::ranges::range<decltype(pipe_out)>);
     static_assert(std::ranges::input_range<decltype(pipe_out)>);
-    auto take = std::views::all(out_pkts) | detail::decode2(dec) | std::views::take(5);
+    auto take = std::views::all(out_pkts) | decode2(dec) | std::views::take(5);
 
 }
 

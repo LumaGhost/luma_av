@@ -495,13 +495,52 @@ namespace views {
 const auto decode = decode_view;
 } // views
 
+namespace detail {
+struct DecodeInterfaceImpl {
+    using coder_type = Decoder;
+    using out_type = Frame;
+    template <class Pkt>
+    static result<void> SendInput(Decoder& dec, Pkt const& pkt) noexcept {
+        return dec.send_packet(pkt);
+    }
+    template <class Pkt>
+    static result<void> SendInput(Decoder& dec, result<Pkt> const& pkt_res) noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, pkt_res);
+        return dec.send_packet(pkt);
+    }
+    static result<std::reference_wrapper<const Frame>> RecieveOutput(Decoder& dec) noexcept {
+        LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
+        return dec.view_frame();
+    }
+    // they already have the same .start_draining()
+};
+
+struct EncodeInterfaceImpl {
+    using coder_type = Encoder;
+    using out_type = packet;
+    template <class F>
+    static result<void> SendInput(Encoder& enc, F const& frame) noexcept {
+        return enc.send_frame(frame);
+    }
+    template <class F>
+    static result<void> SendInput(Encoder& enc, result<F> const& frame_res) noexcept {
+        LUMA_AV_OUTCOME_TRY(frame, frame_res);
+        return enc.send_frame(frame);
+    }
+    static result<std::reference_wrapper<const packet>> RecieveOutput(Encoder& enc) noexcept {
+        LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
+        return enc.view_packet();
+    }
+    // they already have the same .start_draining()
+};
 
 // i dont understand why these specific concepts
-template <std::ranges::view R>
-class decode_view2 : public std::ranges::view_interface<decode_view2<R>> {
+template <class EncDecInterface, std::ranges::view R>
+class encdec_view_impl : public std::ranges::view_interface<encdec_view_impl<EncDecInterface, R>> {
 public:
-decode_view2() noexcept = default;
-explicit decode_view2(R base, Decoder& dec) 
+using coder_type = typename EncDecInterface::coder_type;
+encdec_view_impl() noexcept = default;
+explicit encdec_view_impl(R base, coder_type& dec) 
     : base_{std::move(base)}, dec_{std::addressof(dec)} {
 
 }
@@ -510,7 +549,7 @@ explicit decode_view2(R base, Decoder& dec)
 auto base() const noexcept -> R {
     return base_;
 }
-auto decoder() const noexcept -> Decoder& {
+auto coder() const noexcept -> coder_type& {
     return *dec_;
 }
 
@@ -534,7 +573,7 @@ auto end() const {
 
 private:
 R base_{};
-Decoder* dec_ = nullptr;
+coder_type* dec_ = nullptr;
 
 template <bool is_const>
 class iterator;
@@ -543,21 +582,19 @@ class iterator;
 
 // not sure exactly why u do the guide this way but ik tldr "all_view makes this work with more types nicely"
 //  also ofc we dont want to generate a bunch of classes for all the different forwarding refs so we strip that
-template <std::ranges::viewable_range R>
-decode_view2(R&&, Decoder&) -> decode_view2<std::ranges::views::all_t<R>>;
+template <class EncDec, std::ranges::viewable_range R>
+encdec_view_impl(R&&, typename EncDec::coder_type) -> encdec_view_impl<EncDec, std::ranges::views::all_t<R>>;
 
-namespace detail {
 
 template <bool is_const, class T>
 using MaybeConst_t = std::conditional_t<is_const, const T, T>;
 
-} // detail
 
-template <std::ranges::view R>
+template <class EncDec, std::ranges::view R>
 template <bool is_const>
-class decode_view2<R>::iterator {
-    using output_type = result<std::reference_wrapper<const Frame>>;
-    using parent_t = detail::MaybeConst_t<is_const, decode_view2<R>>;
+class encdec_view_impl<EncDec, R>::iterator {
+    using output_type = result<std::reference_wrapper<const typename EncDec::out_type>>;
+    using parent_t = detail::MaybeConst_t<is_const, encdec_view_impl<EncDec, R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;
 
@@ -604,12 +641,12 @@ output_type operator*() const {
     if ((skip_count_== -1) && (cached_frame_)) {
         return *cached_frame_;
     }
-    auto& dec = parent_->decoder();
+    auto& dec = parent_->coder();
     for(;current_!=std::ranges::end(parent_->base_); ++current_) {
-        LUMA_AV_OUTCOME_TRY(dec.send_packet(*current_));
-        if (auto res = dec.recieve_frame()) {
+        LUMA_AV_OUTCOME_TRY(EncDec::SendInput(dec, *current_));
+        if (auto res = EncDec::RecieveOutput(dec)) {
             if (skip_count_ == 0) {
-                auto out = output_type{dec.view_frame()};
+                auto out = output_type{res.value()};
                 cached_frame_ = out;
                 skip_count_ -= 1;
                 return out;
@@ -631,9 +668,9 @@ output_type operator*() const {
         draining_ = true;
     }
     while(true) {
-        if (auto res = dec.recieve_frame()) {
+        if (auto res = EncDec::RecieveOutput(dec)) {
             if (skip_count_ == 0) {
-                auto out = output_type{dec.view_frame()};
+                auto out = output_type{res.value()};
                 cached_frame_ = out;
                 skip_count_ -= 1;
                 return out;
@@ -682,8 +719,6 @@ requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
 
 };
 
-namespace detail {
-
 inline const auto filter_uwu_view = std::views::filter([](const auto& res){
     if (res) {
         return true;
@@ -697,12 +732,12 @@ inline const auto filter_uwu_view = std::views::filter([](const auto& res){
 inline const auto filter_uwu = filter_uwu_view;
 
 
-template <class F>
-class decode_range_adaptor_closure {
+template <class Coder, class F>
+class encdec_impl_range_adaptor_closure {
     F f_;
-    Decoder* dec_;
+    Coder* dec_;
     public:
-    decode_range_adaptor_closure(F f, Decoder& dec) 
+    encdec_impl_range_adaptor_closure(F f, Coder& dec) 
         : f_{std::move(f)}, dec_{std::addressof(dec)} {
 
     }
@@ -717,31 +752,35 @@ class decode_range_adaptor_closure {
     }
 };
 
-template <class F, std::ranges::viewable_range R>
-decltype(auto) operator|(R&& r, decode_range_adaptor_closure<F> const& closure) {
+template <class EncDec, class F, std::ranges::viewable_range R>
+decltype(auto) operator|(R&& r, encdec_impl_range_adaptor_closure<EncDec, F> const& closure) {
     return closure(std::forward<R>(r));
 }
 
 
-class decode_view_fn {
+template <class EncDec>
+class encdec_view_impl_fn {
+using coder_type = typename EncDec::coder_type;
 public:
 template <class R>
-auto operator()(R&& r, Decoder& dec) const {
-    return decode_view2{std::views::all(std::forward<R>(r)), dec} | filter_uwu;
-    // return decode_view2{std::views::all(std::forward<R>(r)), dec};
+auto operator()(R&& r, coder_type& dec) const {
+    // idk why the deduction guide doesnt work 
+    return encdec_view_impl<EncDec, std::views::all_t<R>>{std::views::all(std::forward<R>(r)), dec} | filter_uwu;
 }
-auto operator()(Decoder& dec) const {
-    return decode_range_adaptor_closure<decode_view_fn>{decode_view_fn{}, dec};
+auto operator()(coder_type& dec) const {
+    return encdec_impl_range_adaptor_closure<coder_type, 
+            encdec_view_impl_fn<EncDec>>{encdec_view_impl_fn<EncDec>{}, dec};
 }
 };
 
-inline const auto decode2 = decode_view_fn{};
-
 } // detail
 
+inline const auto decode_view2 = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
+inline const auto encode_view2 = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
 
 namespace views {
-const auto real_decode = detail::decode_view_fn{};
+inline const auto decode2 = decode_view;
+inline const auto encode2 = encode_view;
 } // views
 
 

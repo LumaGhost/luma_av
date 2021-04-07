@@ -6,6 +6,7 @@
 
 #include <concepts>
 #include <functional>
+#include <type_traits>
 
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
 #include <iostream>
@@ -14,6 +15,9 @@
 
 namespace luma_av {
 namespace detail {
+
+template <bool is_const, class T>
+using MaybeConst_t = std::conditional_t<is_const, const T, T>;
 
 // based on https://github.com/microsoft/GSL/blob/v2.1.0/include/gsl/gsl_util#L57
 template <std::invocable F>

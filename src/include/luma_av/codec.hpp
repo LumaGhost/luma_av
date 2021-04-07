@@ -527,10 +527,6 @@ template <class EncDec, std::ranges::viewable_range R>
 encdec_view_impl(R&&, typename EncDec::coder_type) -> encdec_view_impl<EncDec, std::ranges::views::all_t<R>>;
 
 
-template <bool is_const, class T>
-using MaybeConst_t = std::conditional_t<is_const, const T, T>;
-
-
 template <class EncDec, std::ranges::view R>
 template <bool is_const>
 class encdec_view_impl<EncDec, R>::iterator {
@@ -587,10 +583,10 @@ output_type operator*() const {
     for(;current_!=std::ranges::end(parent_->base_); ++current_) {
         LUMA_AV_OUTCOME_TRY(EncDec::SendInput(dec, *current_));
         if (auto res = EncDec::RecieveOutput(dec)) {
-            if (skip_count_ == 0) {
+            if (skip_count_ <= 0) {
                 auto out = output_type{res.value()};
                 cached_frame_ = out;
-                skip_count_ -= 1;
+                skip_count_ = -1;
                 return out;
             } else {
                 skip_count_ -= 1;

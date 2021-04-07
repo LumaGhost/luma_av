@@ -175,7 +175,7 @@ TEST(codec, read_transcode_ranges2) {
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(std::move(pkt.value().get()));
+                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
             } else if (pkt.error().value() == AVERROR_EOF) {
                 packets.emplace(luma_av::errc::end);
                 return;

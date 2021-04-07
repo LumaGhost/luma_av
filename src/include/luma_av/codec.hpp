@@ -435,66 +435,6 @@ result<void> Drain(Decoder& dec, OutputIt frame_out) noexcept {
 }
 
 
-
-
-
-struct EncClosure {
-    Encoder& enc;
-    template<class F>
-    result<std::reference_wrapper<const packet>> operator()(result<F> const& frame_res) noexcept {
-        LUMA_AV_OUTCOME_TRY(frame, frame_res);
-        return EncodeImpl(frame);
-    }
-    template<class F>
-    result<std::reference_wrapper<const packet>> operator()(F const& frame) noexcept {
-        return EncodeImpl(frame);
-    }
-    template<class F>
-    result<std::reference_wrapper<const packet>> EncodeImpl(F const& frame) noexcept {
-        LUMA_AV_OUTCOME_TRY(enc.send_frame(frame));
-        LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
-        return enc.view_packet();
-    }
-
-};
-const auto encode_view = [](Encoder& enc){
-    return std::views::transform([&](const auto& frame) {
-        return EncClosure{enc}(frame);
-    });
-};
-namespace views {
-const auto encode = encode_view;
-} // views
-
-struct DecClosure {
-    Decoder& dec;
-    template<class Pkt>
-    result<std::reference_wrapper<const Frame>> operator()(result<Pkt> const& packet_res) noexcept {
-        LUMA_AV_OUTCOME_TRY(packet, packet_res);
-        return DecodeImpl(packet);
-    }
-    template<class Pkt>
-    result<std::reference_wrapper<const Frame>> operator()(Pkt const& packet) noexcept {
-        return DecodeImpl(packet);
-    }
-
-    template<class Pkt>
-    result<std::reference_wrapper<const Frame>> DecodeImpl(Pkt const& packet) noexcept {
-        LUMA_AV_OUTCOME_TRY(dec.send_packet(packet));
-        LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
-        return dec.view_frame();
-    }
-};
-const auto decode_view = [](Decoder& dec){
-    return std::views::transform([&](const auto& packet_res) {
-        return DecClosure{dec}(packet_res);
-    });
-};
-
-namespace views {
-const auto decode = decode_view;
-} // views
-
 namespace detail {
 struct DecodeInterfaceImpl {
     using coder_type = Decoder;
@@ -782,12 +722,12 @@ auto operator()(coder_type& dec) const {
 
 } // detail
 
-inline const auto decode_view2 = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
-inline const auto encode_view2 = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
+inline const auto decode_view = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
+inline const auto encode_view = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
 
 namespace views {
-inline const auto decode2 = decode_view2;
-inline const auto encode2 = encode_view2;
+inline const auto decode = decode_view;
+inline const auto encode = encode_view;
 } // views
 
 

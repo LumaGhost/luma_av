@@ -250,7 +250,7 @@ TEST(codec, decode_view_messsaround) {
     auto dec = Decoder::make("h264"_cv).value();
 
     std::vector<packet> out_pkts;
-    auto dv = decode_view2(std::views::all(out_pkts), dec);
+    auto dv = decode_view(std::views::all(out_pkts), dec);
     auto it = dv.begin();
     ++it;
     it++;
@@ -267,12 +267,12 @@ TEST(codec, decode_view_messsaround) {
     static_assert(std::ranges::view<decltype(dv)>);
     static_assert(std::ranges::range<decltype(dv)>);
     static_assert(std::ranges::input_range<decltype(dv)>);
-    auto pipe_out = std::views::all(out_pkts) | decode2(dec);
+    auto pipe_out = std::views::all(out_pkts) | decode(dec);
     static_assert(std::ranges::viewable_range<decltype(pipe_out)>);
     static_assert(std::ranges::view<decltype(pipe_out)>);
     static_assert(std::ranges::range<decltype(pipe_out)>);
     static_assert(std::ranges::input_range<decltype(pipe_out)>);
-    auto take = std::views::all(out_pkts) | decode2(dec) | std::views::take(5);
+    auto take = std::views::all(out_pkts) | decode(dec) | std::views::take(5);
 
 }
 
@@ -280,7 +280,7 @@ TEST(codec, enc_view_messsaround) {
     auto enc = Encoder::make("h264"_cv).value();
 
     std::vector<Frame> out_frames;
-    auto dv = encode_view2(std::views::all(out_frames), enc);
+    auto dv = encode_view(std::views::all(out_frames), enc);
     auto it = dv.begin();
     ++it;
     it++;
@@ -297,12 +297,12 @@ TEST(codec, enc_view_messsaround) {
     static_assert(std::ranges::view<decltype(dv)>);
     static_assert(std::ranges::range<decltype(dv)>);
     static_assert(std::ranges::input_range<decltype(dv)>);
-    auto pipe_out = std::views::all(out_frames) | encode2(enc);
+    auto pipe_out = std::views::all(out_frames) | encode(enc);
     static_assert(std::ranges::viewable_range<decltype(pipe_out)>);
     static_assert(std::ranges::view<decltype(pipe_out)>);
     static_assert(std::ranges::range<decltype(pipe_out)>);
     static_assert(std::ranges::input_range<decltype(pipe_out)>);
-    auto take = std::views::all(out_frames) | encode2(enc) | std::views::take(5);
+    auto take = std::views::all(out_frames) | encode(enc) | std::views::take(5);
 
 }
 
@@ -318,7 +318,7 @@ TEST(codec, NewRangesUwU) {
     std::vector<packet> out_pkts;
     out_pkts.reserve(5);
 
-    auto pipe = read_input(reader) | decode2(dec) | scale(sws) | encode2(enc);
+    auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc);
 
     for (const auto& packet : pipe) {
         std::cout << "uwu" << std::endl;

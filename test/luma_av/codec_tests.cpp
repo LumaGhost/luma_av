@@ -308,6 +308,24 @@ TEST(codec, enc_view_messsaround) {
 
 
 TEST(codec, NewRangesUwU) {
+    auto reader = Reader::make("input_url"_cv).value();
+
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
+    auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+
+    auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc) 
+        | std::views::transform([](auto const& res){
+            return packet::make(res.value(), packet::shallow_copy).value();
+    });
+
+    std::vector<packet> out_pkts;
+    for (auto&& pkt : pipe) {
+        out_pkts.push_back(std::move(pkt));
+    }
+}
+
+TEST(codec, asyncTranscodeNewRanges) {
 
     auto reader = Reader::make("input_url"_cv).value();
 
@@ -318,10 +336,88 @@ TEST(codec, NewRangesUwU) {
     std::vector<packet> out_pkts;
     out_pkts.reserve(5);
 
-    auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc);
+    std::queue<result<packet>> packets;
+    std::queue<result<Frame>> frames;
 
-    for (const auto& packet : pipe) {
-        std::cout << "uwu" << std::endl;
-    }
+    auto read_fut = std::async([&]() -> void {
+        for (auto const& pkt : read_input(reader)) {
+            if (pkt) {
+                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
+            } else {
+                packets.emplace(pkt.error());
+                return;
+            }
+        }
+    });
 
+    auto dec_fut = std::async([&]() -> void {
+        for (const auto frame : queue_pop_view(packets) | decode(dec) | scale(sws)) {
+            if (frame) {
+                frames.emplace(Frame::make(frame.value().get(), Frame::shallow_copy));
+            } else {
+                frames.emplace(frame.error());
+                return;
+            }
+        }
+    });
+
+    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+        auto f = luma_av::detail::finally([&](){
+            read_fut.get();
+            dec_fut.get();
+        });
+        std::vector<packet> out_packets;
+        for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
+            if (pkt) {
+                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
+            } else {
+                return luma_av::outcome::failure(pkt.error());
+            }
+        }
+        return out_packets;
+    });
+
+    auto pkts = enc_fut.get().value();
+}
+
+TEST(codec, asyncTranscodeNewRanges2) {
+
+    auto reader = Reader::make("input_url"_cv).value();
+
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
+    auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+
+    std::vector<packet> out_pkts;
+    out_pkts.reserve(5);
+
+    std::queue<result<packet>> packets;
+
+    auto read_fut = std::async([&]() -> void {
+        for (auto const& pkt : read_input(reader)) {
+            if (pkt) {
+                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
+            } else {
+                packets.emplace(pkt.error());
+                return;
+            }
+        }
+    });
+
+    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+        auto f = luma_av::detail::finally([&](){
+            read_fut.get();
+        });
+        std::vector<packet> out_packets;
+        for (const auto pkt : queue_pop_view(packets) | decode(dec) | scale(sws) | encode(enc)) {
+            if (pkt) {
+                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
+            } else {
+                return luma_av::outcome::failure(pkt.error());
+            }
+        }
+        return out_packets;
+    });
+
+    auto pkts = enc_fut.get().value();
 }

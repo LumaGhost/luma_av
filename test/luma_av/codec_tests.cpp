@@ -430,6 +430,9 @@ TEST(codec, ParseyUwU) {
     auto enc = Encoder::make("h264"_cv).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
+    // std::span<const uint8_t> whaaa{};
+    // std::ranges::end(std::views::single(whaaa));
+
     std::vector<std::span<const uint8_t>> data;
 
     auto pipe = data | parse_packets(parser) | decode(dec) | scale(sws) | encode(enc) 

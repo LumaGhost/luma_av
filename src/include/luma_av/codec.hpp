@@ -364,6 +364,12 @@ class Decoder {
         LUMA_AV_OUTCOME_TRY(f, Frame::make());
         return Decoder{std::move(ctx), std::move(f)};
     }
+    static result<Decoder> make(const AVCodecID id, 
+                                AVDictionary**  options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY(codec, luma_av::find_decoder(id));
+        LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec));
+        return Decoder::make(std::move(ctx), options);
+    }
     static result<Decoder> make(const cstr_view codec_name, 
                                 AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));

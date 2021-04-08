@@ -30,6 +30,9 @@ enum class errc : int
   scale_init_failure,
   decode_range_end,
   detail_reader_range_end,
+  parser_not_found,
+  parser_hungry_uwu,
+  detail_parser_range_end,
   end, // no more data will be sent
   again // no data yet but if u send again u may get some
 };

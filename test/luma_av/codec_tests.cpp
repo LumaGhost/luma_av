@@ -12,6 +12,7 @@
 #include <luma_av/format.hpp>
 #include <luma_av/swscale.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/parser.hpp>
 
 using namespace luma_av;
 using namespace luma_av::views;
@@ -420,4 +421,24 @@ TEST(codec, asyncTranscodeNewRanges2) {
     });
 
     auto pkts = enc_fut.get().value();
+}
+
+
+TEST(codec, ParseyUwU) {
+    auto parser = Parser::make("h264"_cv).value();
+    auto dec = Decoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cv).value();
+    auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
+
+    std::vector<std::span<const uint8_t>> data;
+
+    auto pipe = data | parse_packets(parser) | decode(dec) | scale(sws) | encode(enc) 
+        | std::views::transform([](auto const& res){
+            return packet::make(res.value(), packet::shallow_copy).value();
+    });
+
+    std::vector<packet> out_pkts;
+    for (auto&& pkt : pipe) {
+        out_pkts.push_back(std::move(pkt));
+    }
 }

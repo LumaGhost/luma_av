@@ -34,20 +34,18 @@ inline result<const AVCodec*> codec_error_handling(const AVCodec* codec) noexcep
     }
 }
 
+
+}// detail
+
 // overload set since its c++ and we can do that
 inline result<const AVCodec*> find_decoder(enum AVCodecID id) noexcept {
     const AVCodec* codec = avcodec_find_decoder(id);
-    return codec_error_handling(codec);
+    return detail::codec_error_handling(codec);
 }
-// think ffmpeg is expecting null terminated, so no sv here :/
 inline result<const AVCodec*> find_decoder(const cstr_view name) noexcept {
     const AVCodec* codec = avcodec_find_decoder_by_name(name.c_str());
-    return codec_error_handling(codec);
+    return detail::codec_error_handling(codec);
 }
-
-
-
-}// detail
 
 
 
@@ -152,7 +150,7 @@ class CodecContext {
 
 
     static result<CodecContext> make(const cstr_view codec_name) noexcept {
-        LUMA_AV_OUTCOME_TRY(codec, detail::find_decoder(codec_name));
+        LUMA_AV_OUTCOME_TRY(codec, luma_av::find_decoder(codec_name));
         LUMA_AV_OUTCOME_TRY(ctx, alloc_context(codec));
         return CodecContext{ctx.release(), codec};
     }
@@ -189,6 +187,14 @@ class CodecContext {
     CodecContext(CodecContext&&) noexcept = default;
     CodecContext& operator=(CodecContext&&) noexcept = default;
 
+    // this actually can be null though not sure how we want to handle that?
+    // gona just fire an assertion for now. but we may want to support it as a default state idk
+    auto codec() const noexcept -> const AVCodec* {
+        auto ptr = ctx_.get()->codec;
+        LUMA_AV_ASSERT(ptr);
+        return ptr;
+    }
+
 
     /*
     warning:
@@ -218,9 +224,6 @@ class CodecContext {
         return detail::ffmpeg_code_to_result(ec);
     }
 
-    const AVCodec* codec() const noexcept {
-        return codec_;
-    }
     const AVCodecContext* get() const noexcept {
         return ctx_.get();
     }

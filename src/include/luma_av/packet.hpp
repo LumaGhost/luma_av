@@ -71,6 +71,7 @@ class packet {
     struct shallow_copy_t {};
     static constexpr auto shallow_copy = shallow_copy_t{}; 
     static result<packet> make(const AVPacket* in_pkt, shallow_copy_t) noexcept {
+        LUMA_AV_ASSERT(in_pkt);
         LUMA_AV_OUTCOME_TRY(pkt, This::make());
         LUMA_AV_OUTCOME_TRY_FF(av_packet_copy_props(pkt.pkt_.get(), in_pkt));
         LUMA_AV_OUTCOME_TRY_FF(av_packet_ref(pkt.pkt_.get(), in_pkt));
@@ -108,6 +109,39 @@ class packet {
         return pkt_.get();
     }
 
+    std::span<const uint8_t> span() const noexcept {
+        LUMA_AV_ASSERT(pkt_.get()->data);
+        LUMA_AV_ASSERT(pkt_.get()->size > 0);
+        return {pkt_.get()->data, pkt_.get()->size};
+    }
+
+    std::span<uint8_t> span() noexcept {
+        LUMA_AV_ASSERT(pkt_.get()->data);
+        LUMA_AV_ASSERT(pkt_.get()->size > 0);
+        return {pkt_.get()->data, pkt_.get()->size};
+    }
+
+    result<void> reset_buffer(uint8_t* data, int size) const noexcept {
+        // either ref coutned with on ref, or no buffer at all
+        // otherwise i think this function leaks
+        LUMA_AV_ASSERT(is_writable() || (!pkt_->buf && !pkt_->data));
+        LUMA_AV_OUTCOME_TRY_FF(av_packet_from_data(pkt_.get(), data, size));
+        return luma_av::outcome::success();
+    }
+    result<void> make_writable() {
+        LUMA_AV_ASSERT(pkt_->buf);
+        LUMA_AV_OUTCOME_TRY_FF(av_buffer_make_writable(&pkt_->buf));
+        return luma_av::outcome::success();
+    }
+
+    bool is_writable() const noexcept {
+        // non ref counted frames are never assumed writable
+        // https://www.ffmpeg.org/doxygen/trunk/frame_8c_source.html#l00595
+        if (!pkt_->buf) {
+            return false;
+        }
+        return av_buffer_is_writable(pkt_->buf) == 1;
+    }
 
 };
 

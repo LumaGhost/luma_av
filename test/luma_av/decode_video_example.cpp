@@ -93,8 +93,7 @@ TEST(DecodeVideoExample, MyExample) {
             v | luma_av::views::parse_packets(parser) | luma_av::views::decode(decoder);
         std::ranges::for_each(pipe, save_frames);
     }
-    // std::ranges::for_each(luma_av::views::drain(decoder) 
-    //                         | luma_av::views::scale(sws), save_frames);
+    std::ranges::for_each(luma_av::views::drain(decoder), save_frames);
 }
 using namespace luma_av_literals;
 TEST(DecodeVideoExample, MyExampleStdFileScaling) {
@@ -133,8 +132,8 @@ TEST(DecodeVideoExample, MyExampleStdFileScaling) {
                 | luma_av::views::decode(decoder) | luma_av::views::scale(sws);
         std::ranges::for_each(pipe, save_frames);
     };
-    // std::ranges::for_each(luma_av::views::drain(decoder) 
-    //                         | luma_av::views::scale(sws), save_frames);
+    std::ranges::for_each(luma_av::views::drain(decoder) 
+                            | luma_av::views::scale(sws), save_frames);
 }
 
 

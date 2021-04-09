@@ -435,7 +435,7 @@ TEST(codec, ParseyUwU) {
 
     std::vector<std::span<const uint8_t>> data;
 
-    auto pipe = data | parse_packets(parser) | decode(dec) | scale(sws) | encode(enc) 
+    auto pipe = data | parse_packets(parser) | decode_drain(dec) | scale(sws) | encode_drain(enc) 
         | std::views::transform([](auto const& res){
             return packet::make(res.value(), packet::shallow_copy).value();
     });

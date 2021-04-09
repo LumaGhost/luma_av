@@ -489,7 +489,7 @@ class encdec_view_impl : public std::ranges::view_interface<encdec_view_impl<Enc
 public:
 using coder_type = typename EncDecInterface::coder_type;
 encdec_view_impl() noexcept = default;
-explicit encdec_view_impl(R base, coder_type& dec) 
+explicit encdec_view_impl(R base, coder_type& dec, bool drain_me) 
     : base_{std::move(base)}, dec_{std::addressof(dec)} {
 
 }
@@ -500,6 +500,9 @@ auto base() const noexcept -> R {
 }
 auto coder() const noexcept -> coder_type& {
     return *dec_;
+}
+auto drain_me() const noexcept -> bool {
+    return drain_me_;
 }
 
 // i dont think our view can be const qualified but im leaving these for now just in case
@@ -524,6 +527,7 @@ auto end() {
 private:
 R base_{};
 coder_type* dec_ = nullptr;
+bool drain_me_{};
 
 template <bool is_const>
 class iterator;
@@ -606,6 +610,13 @@ output_type operator*() const {
         } else {
             return res.error();
         }
+    }
+
+    // if we're here the input range is over and we gave no more frames 
+    //  if the user doesnt wait draining then this is the end of the range
+    if (!parent_->drain_me()) {
+        done_draining_ = true;
+        return errc::decode_range_end;
     }
 
     // draining
@@ -717,7 +728,24 @@ public:
 template <class R>
 auto operator()(R&& r, coder_type& dec) const {
     // idk why the deduction guide doesnt work 
-    return encdec_view_impl<EncDec, std::views::all_t<R>>{std::views::all(std::forward<R>(r)), dec} | filter_uwu;
+    return encdec_view_impl<EncDec, std::views::all_t<R>>{
+        std::views::all(std::forward<R>(r)), dec, false} | filter_uwu;
+}
+auto operator()(coder_type& dec) const {
+    return encdec_impl_range_adaptor_closure<coder_type, 
+            encdec_view_impl_fn<EncDec>>{encdec_view_impl_fn<EncDec>{}, dec};
+}
+};
+
+template <class EncDec>
+class encdec_drain_impl_fn {
+using coder_type = typename EncDec::coder_type;
+public:
+template <class R>
+auto operator()(R&& r, coder_type& dec) const {
+    // idk why the deduction guide doesnt work 
+    return encdec_view_impl<EncDec, std::views::all_t<R>>{
+        std::views::all(std::forward<R>(r)), dec, true} | filter_uwu;
 }
 auto operator()(coder_type& dec) const {
     return encdec_impl_range_adaptor_closure<coder_type, 
@@ -730,12 +758,201 @@ auto operator()(coder_type& dec) const {
 inline const auto decode_view = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
 inline const auto encode_view = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
 
+inline const auto decode_drain_view = detail::encdec_drain_impl_fn<detail::DecodeInterfaceImpl>{};
+inline const auto encode_drain_view = detail::encdec_drain_impl_fn<detail::EncodeInterfaceImpl>{};
+
 namespace views {
 inline const auto decode = decode_view;
 inline const auto encode = encode_view;
+
+inline const auto decode_drain = decode_drain_view;
+inline const auto encode_drain = encode_drain_view;
 } // views
 
 
+namespace detail {
+// i dont understand why these specific concepts
+template <class EncDecInterface, std::ranges::view R>
+class codec_drain_view : public std::ranges::view_interface<codec_drain_view<EncDecInterface, R>> {
+public:
+using coder_type = typename EncDecInterface::coder_type;
+
+codec_drain_view() noexcept = default;
+explicit codec_drain_view(R base, coder_type& dec) 
+    : base_{std::move(base)}, dec_{std::addressof(dec)} {
+
+}
+
+// think these accessors are specific to this view and can be whatever i want?
+auto base() const noexcept -> R {
+    return base_;
+}
+auto coder() const noexcept -> coder_type& {
+    return *dec_;
+}
+
+// i dont think our view can be const qualified but im leaving these for now just in case
+auto begin() {
+    return iterator<false>{*this};
+}
+// think we can const qualify begin and end if the underlying range can
+// auto begin() const {
+//     return iterator<true>{*this};
+// }
+
+// we steal the end sentinel from the base range and use our operator== to handle
+//  deciding when to end. we should prob have our own sentinel to avoid extra overloads
+//  and potential caveats but idk how
+auto end() {
+    return std::ranges::end(base_);
+}
+// auto end() const {
+//     return std::ranges::end(base_);
+// }
+
+private:
+R base_{};
+coder_type* dec_ = nullptr;
+
+template <bool is_const>
+class iterator;
+
+};
+
+
+
+template <class EncDecInterface, std::ranges::view R>
+template <bool is_const>
+class codec_drain_view<EncDecInterface, R>::iterator {
+    using output_type = result<std::reference_wrapper<const typename EncDecInterface::out_type>>;
+    using parent_t = detail::MaybeConst_t<is_const, codec_drain_view<EncDecInterface, R>>;
+    using base_t = detail::MaybeConst_t<is_const, R>;
+    friend iterator<not is_const>;
+
+    parent_t* parent_ = nullptr;
+    mutable std::ranges::iterator_t<base_t> current_{};
+    mutable bool done_draining_ = false;
+    mutable bool started_draining_ = false;
+    mutable std::ptrdiff_t skip_count_{0};
+    mutable std::optional<output_type> cached_frame_;
+
+public:
+
+// using difference_type = std::ranges::range_difference_t<base_t>;
+using difference_type = std::ptrdiff_t;
+// not sure what our value type is. think its the frame reference from out of the decoder
+using value_type = output_type;
+// uncommenting causes a build failure oops ???
+// using iterator_category = std::input_iterator_tag;
+
+iterator() = default;
+
+explicit iterator(parent_t& parent) 
+ : parent_{std::addressof(parent)},
+    current_{std::ranges::begin(parent.base_)} {
+}
+
+template <bool is_const_other = is_const>
+explicit iterator(iterator<is_const_other> const& other)
+requires is_const and std::convertible_to<std::ranges::iterator_t<R>, std::ranges::iterator_t<base_t>>
+: parent_{other.parent_}, current_{other.current_} {
+}
+
+std::ranges::iterator_t<base_t> base() const {
+    return current_;
+}
+
+// note const as in *it == *it. not const as in thread safe
+output_type operator*() const {
+    // means deref end/past the end if this hits
+    LUMA_AV_ASSERT(!done_draining_);
+    // i fucked up my counter logic if this fires
+    LUMA_AV_ASSERT(skip_count_ >= -1);
+    // if the user hasnt incremented we just want to return the last frame if there is one
+    //  that way *it == *it is true
+    if ((skip_count_== -1) && (cached_frame_)) {
+        return *cached_frame_;
+    }
+    if (!started_draining_) {
+        LUMA_AV_OUTCOME_TRY(parent_->coder().start_draining());
+        started_draining_ = true;
+    }
+    auto& dec = parent_->coder();
+    while(true) {
+        if (auto res = EncDecInterface::RecieveOutput(dec)) {
+            if (skip_count_ == 0) {
+                auto out = output_type{res.value()};
+                cached_frame_ = out;
+                skip_count_ -= 1;
+                return out;
+            } else {
+                skip_count_ -= 1;
+                continue;
+            } 
+        } else if (res.error().value() == AVERROR_EOF) {
+            done_draining_ = true;
+            return errc::decode_range_end;
+        } else {
+            return luma_av::outcome::failure(res.error());
+        }
+    }   
+}
+
+iterator& operator++() {
+    skip_count_ += 1;
+    return *this;
+}
+
+void operator++(int) {
+    ++*this;
+}
+
+// dont rly understand this but following along
+// ig that if we have a forward range we need to actually return an iterator
+// but why not just return *this. why is temp made first?
+iterator operator++(int) 
+requires std::ranges::forward_range<base_t> {
+    auto temp = *this;
+    ++*this;
+    return temp;
+}
+
+bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
+    return done_draining_;
+}
+
+bool operator==(iterator const& other) const 
+requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
+    return parent_->dec_ == other.parent_->dec_ &&
+    current_ == other.current_ &&
+    done_draining_ == other.done_draining_ &&
+    started_draining_ == other.started_draining_ &&
+    skip_count_ == other.skip_count_ &&
+    cached_frame_.has_value() == other.cached_frame_.has_value();
+}
+
+};
+
+class drain_view_fn {
+public:
+auto operator()(Encoder& enc) const {
+    auto in = std::views::single(0);
+    return codec_drain_view<EncodeInterfaceImpl, std::views::all_t<decltype(in)>>{in, enc} | filter_uwu;
+}
+
+auto operator()(Decoder& dec) const {
+    auto in = std::views::single(0);
+    return codec_drain_view<DecodeInterfaceImpl, std::views::all_t<decltype(in)>>{in, dec} | filter_uwu;
+}
+};
+
+} // detail
+
+inline const auto drain_view = detail::drain_view_fn{};
+
+namespace views {
+inline const auto drain = drain_view;
+} // views
 
 } // luma_av
 

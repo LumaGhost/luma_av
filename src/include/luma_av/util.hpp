@@ -19,6 +19,12 @@ namespace detail {
 template <bool is_const, class T>
 using MaybeConst_t = std::conditional_t<is_const, const T, T>;
 
+template <class T, class ... Ts>
+inline constexpr bool same_as_one_of = (std::is_same_v<T, Ts> || ...);
+
+template <class T, class ... Ts>
+inline constexpr bool convertable_to_one_of = (std::convertible_to<T, Ts> || ...);
+
 // based on https://github.com/microsoft/GSL/blob/v2.1.0/include/gsl/gsl_util#L57
 template <std::invocable F>
 class final_action {
@@ -48,7 +54,8 @@ constexpr auto ToUnderlying(Enum e) noexcept -> std::underlying_type_t<Enum> {
 }
 
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
-inline [[noreturn]] void terimate(const std::source_location& location 
+[[noreturn]]
+inline void terimate(const std::source_location& location 
                                     = std::source_location::current()) noexcept {
     // https://en.cppreference.com/w/cpp/utility/source_location
     std::cerr << "luma_av assertion failure: "
@@ -59,27 +66,27 @@ inline [[noreturn]] void terimate(const std::source_location& location
     std::terminate();
 };
 #else
-inline [[noreturn]] void terimate() noexcept {
+[[noreturn]]
+inline void terimate() noexcept {
     std::terminate();
 };
 #endif // LUMA_AV_ENABLE_ASSERTION_LOG
 
 } // detail
 
-// based on https://github.com/microsoft/GSL/blob/v2.1.0/include/gsl/gsl_assert#L154
-#if defined(__clang__) || defined(__GNUC__)
-#define LUMA_AV_LIKELY(x) __builtin_expect(!!(x), 1)
-#else
-#define LUMA_AV_LIKELY(x) (!!(x))
-#endif // defined(__clang__) || defined(__GNUC__)
-
 #ifdef LUMA_AV_ENABLE_ASSERTIONS
 #define LUMA_AV_ASSERT(cond)
-    (LUMA_AV_LIKELY(cond) ? static_cast<void>(0) : luma_av::detail::terminate())
+    ((cond) ? [[likely]] static_cast<void>(0) : [[unlikely]] luma_av::detail::terminate())
 #else
 #define LUMA_AV_ASSERT(cond)
 #endif // LUMA_AV_ENABLE_ASSERTIONS
 
+
+template <class T>
+using NotNull = T;
+
+template <class T>
+using Owner = T;
 
 class cstr_view {
     public:

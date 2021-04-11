@@ -71,26 +71,7 @@ class MappedFileBuff {
     }
 };
 
-namespace detail {
 
-struct CustomAvioReadTag {};
-struct CustomAvioWriteTag {};
-template <class F>
-struct FptrCaller {
-    static int ReadPacket(void *opaque, uint8_t *buf, int buf_size) {
-        F* f = reinterpret_cast<F*>(opaque);
-        return std::invoke(*f, CustomAvioReadTag{}, buf, buf_size);
-    }
-    static int WritePacket(void *opaque, uint8_t *buf, int buf_size) {
-        F* f = reinterpret_cast<F*>(opaque);
-        return std::invoke(*f, CustomAvioWriteTag{}, buf, buf_size);
-    }
-    static int64_t Seek(void *opaque, int64_t offset, int whence) {
-        F* f = reinterpret_cast<F*>(opaque);
-        return std::invoke(*f, offset, whence);
-    }
-};
-};
 
 
 class CustomIOFunctions {
@@ -99,68 +80,85 @@ class CustomIOFunctions {
 
     template <class F>
     requires std::convertible_to<std::invoke_result_t<F, uint8_t*, int>, int>
-    CustomIOFunctions& SetCustomRead(F&& f) noexcept {
+    CustomIOFunctions& CustomRead(F&& f) noexcept {
         custom_read_ = std::forward<F>(f);
         return *this;
     }
     template <class F>
     requires std::convertible_to<std::invoke_result_t<F, uint8_t*, int>, int>
-    CustomIOFunctions& SetCustomWrite(F&& f) noexcept {
+    CustomIOFunctions& CustomWrite(F&& f) noexcept {
         custom_write_ = std::forward<F>(f);
         return *this;
     }
 
     template <class F>
     requires std::is_same_v<std::invoke_result_t<F, int64_t, int>, int64_t>
-    CustomIOFunctions& SetCustomSeek(F&& f) noexcept {
+    CustomIOFunctions& CustomSeek(F&& f) noexcept {
         custom_seek_ = std::forward<F>(f);
         return *this;
     }
 
-    auto CustomReadPtr() const noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
-        if (custom_read_) {
-            return &detail::FptrCaller<CustomIOFunctions>::ReadPacket;
-        } else {
-            return nullptr;
-        }
-    }
-    auto CustomWritePtr() const noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
-        if (custom_write_) {
-            return &detail::FptrCaller<CustomIOFunctions>::WritePacket;
-        } else {
-            return nullptr;
-        }
-    }
-    auto CustomSeekPtr() const noexcept -> int64_t(*)(void *opaque, int64_t offset, int whence) {
-        if (custom_seek_) {
-            return &detail::FptrCaller<CustomIOFunctions>::Seek;
-        } else {
-            return nullptr;
-        }
+    auto const& CustomRead() const noexcept {
+        return custom_read_;
     }
 
-    int operator()(detail::CustomAvioReadTag, uint8_t *buf, int buf_size) noexcept {
-        LUMA_AV_ASSERT(custom_read_);
-        return custom_read_(buf, buf_size);
+    auto const& CustomWrite() const noexcept {
+        return custom_write_;
     }
 
-    int operator()(detail::CustomAvioWriteTag, uint8_t *buf, int buf_size) noexcept {
-        LUMA_AV_ASSERT(custom_write_);
-        return custom_write_(buf, buf_size);
+    auto const& CustomSeek() const noexcept {
+        return custom_seek_;
     }
-
-    int64_t operator()(int64_t offset, int whence) noexcept {
-        LUMA_AV_ASSERT(custom_seek_);
-        return custom_seek_(offset, whence);
-    }
-
-
 
     private:
     std::function<int(uint8_t *buf, int buf_size)> custom_read_;
     std::function<int(uint8_t *buf, int buf_size)> custom_write_;
     std::function<int64_t(int64_t offset, int whence)> custom_seek_;
 };
+
+
+namespace detail {
+
+struct CustomIOFptrCaller {
+    static int ReadPacket(void *opaque, uint8_t *buf, int buf_size) {
+        auto iof = reinterpret_cast<CustomIOFunctions*>(opaque);
+        LUMA_AV_ASSERT(iof->CustomRead());
+        return std::invoke(iof->CustomRead(), buf, buf_size);
+    }
+    static int WritePacket(void *opaque, uint8_t *buf, int buf_size) {
+        auto iof = reinterpret_cast<CustomIOFunctions*>(opaque);
+        LUMA_AV_ASSERT(iof->CustomWrite());
+        return std::invoke(iof->CustomWrite(), buf, buf_size);
+    }
+    static int64_t Seek(void *opaque, int64_t offset, int whence) {
+        auto iof = reinterpret_cast<CustomIOFunctions*>(opaque);
+        LUMA_AV_ASSERT(iof->CustomSeek());
+        return std::invoke(iof->CustomSeek(), offset, whence);
+    }
+};
+
+inline auto CustomReadPtr(CustomIOFunctions const& iof) noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
+    if (iof.CustomRead()) {
+        return &detail::CustomIOFptrCaller::ReadPacket;
+    } else {
+        return nullptr;
+    }
+}
+inline auto CustomWritePtr(CustomIOFunctions const& iof) noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
+    if (iof.CustomWrite()) {
+        return &detail::CustomIOFptrCaller::WritePacket;
+    } else {
+        return nullptr;
+    }
+}
+inline auto CustomSeekPtr(CustomIOFunctions const& iof) noexcept -> int64_t(*)(void *opaque, int64_t offset, int whence) {
+    if (iof.CustomSeek()) {
+        return &detail::CustomIOFptrCaller::Seek;
+    } else {
+        return nullptr;
+    }
+}
+} // detail
 
 
 class IOContext {
@@ -196,9 +194,9 @@ class IOContext {
     static result<IOContext> make(Owner<uint8_t*> buff, int size, CustomIOFunctions custom_functions = {}) noexcept {
         auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
         LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff, size, 1, custom_funcs.get(),
-                                            custom_funcs->CustomReadPtr(),
-                                            custom_funcs->CustomWritePtr(),
-                                            custom_funcs->CustomSeekPtr()));
+                                            detail::CustomReadPtr(*custom_funcs),
+                                            detail::CustomWritePtr(*custom_funcs),
+                                            detail::CustomSeekPtr(*custom_funcs)));
         return IOContext(std::move(custom_funcs), ctx.release());
     }
 
@@ -207,9 +205,9 @@ class IOContext {
         auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
         // ioc needs ownership of the input buffer but doesnt free on failure
         LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff.data(), size, 1, custom_funcs.get(),
-                                            custom_funcs->CustomReadPtr(),
-                                            custom_funcs->CustomWritePtr(),
-                                            custom_funcs->CustomSeekPtr()));
+                                            detail::CustomReadPtr(*custom_funcs),
+                                            detail::CustomWritePtr(*custom_funcs),
+                                            detail::CustomSeekPtr(*custom_funcs)));
         // so we release our ownership of buff only after the ioc is created
         // its ok to not assign the ptr cause the ioc owns the memory at this pointer
         static_cast<void>(buff.release());

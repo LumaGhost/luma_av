@@ -47,7 +47,7 @@ TEST(AvioReadingExample, MyExample) {
         return buf_size;
     };
 
-    auto io_callbacks = luma_av::CustomIOFunctions{}.SetCustomRead(std::move(custom_reader));
+    auto io_callbacks = luma_av::CustomIOFunctions{}.CustomRead(std::move(custom_reader));
     constexpr auto avio_ctx_buffer_size = int{4096};
     auto custom_io = luma_av::IOContext::make(avio_ctx_buffer_size, std::move(io_callbacks)).value();
 

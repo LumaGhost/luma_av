@@ -11,6 +11,7 @@ add_executable(luma_av_tests test_main.cpp
                              luma/av/detail/unique_or_null_tests.cpp
                              luma_av/decode_video_example.cpp
                              luma_av/avio_reading_example.cpp
+                             luma_av/filtering_video_example.cpp
                              luma_av/frame_tests.cpp
                              luma_av/codec_tests.cpp
                              luma_av/result_tests.cpp)

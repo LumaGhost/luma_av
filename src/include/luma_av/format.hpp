@@ -209,7 +209,7 @@ class IOContext {
                                             detail::CustomWritePtr(*custom_funcs),
                                             detail::CustomSeekPtr(*custom_funcs)));
         // so we release our ownership of buff only after the ioc is created
-        // its ok to not assign the ptr cause the ioc owns the memory at this pointer
+        // its ok to not assign the ptr cause the ioc owns the memory at this point
         static_cast<void>(buff.release());
         return IOContext(std::move(custom_funcs), ctx.release());
     }
@@ -352,14 +352,36 @@ class format_context {
         LUMA_AV_OUTCOME_TRY_FF(avformat_find_stream_info(fctx_.get(), options));
         return luma_av::outcome::success();
     }
-
-    result<std::pair<std::size_t, const AVCodec*>> GetOrFindStream(AVMediaType type) noexcept {
-        LUMA_AV_OUTCOME_TRY(info, streams_[type]);
-        return {info.stream_idx, info.codec};
+    
+    std::size_t nb_streams() const noexcept {
+        return fctx_->nb_streams;
     }
-    std::pair<std::size_t, const AVCodec*> GetStream(AVMediaType type) noexcept {
-        auto info = streams_.At(type);
-        return {info.stream_idx, info.codec};
+    // cant get a const stream span idk why 
+    std::span<AVStream*> streams() const noexcept {
+        return std::span<AVStream*>(fctx_->streams, nb_streams());
+    }
+    const AVStream* stream(std::size_t stream_idx) const noexcept {
+        LUMA_AV_ASSERT(stream_idx < nb_streams());
+        return fctx_->streams[stream_idx];
+    }
+
+    result<void> FindBestStream(AVMediaType type) noexcept {
+        LUMA_AV_OUTCOME_TRY(info, streams_[type]);
+        return luma_av::outcome::success();
+    }
+    result<const AVCodec*> FindCodec(AVMediaType type) noexcept {
+        LUMA_AV_OUTCOME_TRY(info, streams_[type]);
+        return info.codec;
+    }
+    const AVCodec* codec(AVMediaType type) {
+        return streams_.At(type).codec;
+    }
+    result<std::size_t> FindStreamIndex(AVMediaType type) noexcept {
+        LUMA_AV_OUTCOME_TRY(info, streams_[type]);
+        return info.stream_idx;
+    }
+    std::size_t stream_index(AVMediaType type) {
+        return streams_.At(type).stream_idx;
     }
 
     // lighest weight easiest to misuse

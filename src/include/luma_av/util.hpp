@@ -129,6 +129,9 @@ class NonOwning {
     pointer ptr_;
 };
 
+enum class Width : int {};
+enum class Height : int {};
+
 } // luma_av
 
 namespace luma_av_literals {
@@ -136,6 +139,14 @@ namespace luma_av_literals {
 inline luma_av::cstr_view operator ""_cv (const char* cstr, std::size_t) noexcept {
     return luma_av::cstr_view{cstr};
 }
+
+inline luma_av::Width operator ""_w (unsigned long long int width) noexcept {
+    return luma_av::Width{static_cast<int>(width)};
+}
+inline luma_av::Height operator ""_h (unsigned long long int height) noexcept {
+    return luma_av::Height{static_cast<int>(height)};
+}
+
 } // luma_av_literals
 
 

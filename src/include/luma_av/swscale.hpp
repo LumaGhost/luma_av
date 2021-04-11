@@ -18,9 +18,6 @@ extern "C" {
 
 namespace luma_av {
 
-enum class Width : int {};
-enum class Height : int {};
-
 class ScaleFilter {
 
 };
@@ -166,18 +163,6 @@ const auto scale = scale_view;
 
 } // luma_av
 
-
-
-namespace luma_av_literals {
-
-inline luma_av::Width operator ""_w (unsigned long long int width) noexcept {
-    return luma_av::Width{static_cast<int>(width)};
-}
-inline luma_av::Height operator ""_h (unsigned long long int height) noexcept {
-    return luma_av::Height{static_cast<int>(height)};
-}
-
-} // luma_av_literals
 
 
 

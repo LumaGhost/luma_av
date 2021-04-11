@@ -17,10 +17,43 @@ extern "C" {
 #include <gtest/gtest.h>
 #include <luma_av/codec.hpp>
 #include <luma_av/format.hpp>
-#include <luma_av/parser.hpp>
-#include <luma_av/swscale.hpp>
+#include <luma_av/filter.hpp>
+#include <luma_av/util.hpp>
+
+using namespace luma_av_literals;
+
 
 TEST(FilterVideoExample, MyExample) {
+
+    auto my_display_frame = [last_pts = int64_t{0}]
+                (const AVFrame *frame, AVRational time_base) mutable {
+        int x, y;
+        uint8_t *p0, *p;
+        int64_t delay;
+        if (frame->pts != AV_NOPTS_VALUE) {
+            if (last_pts != AV_NOPTS_VALUE) {
+                /* sleep roughly the right amount of time;
+                * usleep is in microseconds, just like AV_TIME_BASE. */
+                delay = av_rescale_q(frame->pts - last_pts,
+                                    time_base, AV_TIME_BASE_Q);
+                if (delay > 0 && delay < 1000000)
+                    usleep(delay);
+            }
+            last_pts = frame->pts;
+        }
+        /* Trivial ASCII grayscale display. */
+        p0 = frame->data[0];
+        puts("\033c");
+        for (y = 0; y < frame->height; y++) {
+            p = p0;
+            for (x = 0; x < frame->width; x++)
+                putchar(" .-+#"[*(p++) / 52]);
+            putchar('\n');
+            p0 += frame->linesize[0];
+        }
+        fflush(stdout);
+    };
+
     const auto input_filename = luma_av::cstr_view{"argv[1]"};
     auto fctx = luma_av::format_context::open_input(input_filename).value();
     fctx.FindStreamInfo().value();
@@ -30,9 +63,51 @@ TEST(FilterVideoExample, MyExample) {
     auto dec_ctx = luma_av::CodecContext::make(vid_codec, fctx.stream(vid_idx)->codecpar).value();
     const auto time_base = fctx.stream(vid_idx)->time_base;
 
+    auto filter_graph = luma_av::FilterGraph::make().value();
+    auto filter_args = luma_av::FilterGraphArgs{}
+            .VideoSize(dec_ctx.get()->width, dec_ctx.get()->height)
+            .PixFormat(dec_ctx.get()->pix_fmt)
+            .AspectRatio(dec_ctx.get()->sample_aspect_ratio)
+            .TimeBase(time_base);
+    auto src_filt = luma_av::FindFilter("buffer"_cv).value();
+    filter_graph.CreateSrcFilter(src_filt, "in"_cv, filter_args).value();
+
+    auto sink_filt = luma_av::FindFilter("buffer"_cv).value();
+    filter_graph.CreateSinkFilter(src_filt, "out"_cv).value();
+    
+    std::vector<AVPixelFormat> pix_fmts{AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE};
+    filter_graph.SetSinkFilterFormats(pix_fmts).value();
+    
+    filter_graph.FinalizeConfig("scale=78:24,transpose=cclock"_cv).value();
+    const auto sink_timebase = filter_graph.sink_context()->inputs[0]->time_base;
+
 
     auto reader = luma_av::Reader::make(std::move(fctx)).value();
     auto decoder = luma_av::Decoder::make(std::move(dec_ctx)).value();
+
+    const auto is_video = [&](auto const& pkt_res){
+        if(pkt_res.has_value()) {
+            return pkt_res.value().get().get()->stream_index == vid_idx;
+        } else {
+            return true;
+        }
+    };
+    const auto set_frame_pts = [](const auto& frame_res) -> std::decay_t<decltype(frame_res)> {
+        LUMA_AV_OUTCOME_TRY(frame, frame_res);
+        // frame.get().get()->pts = frame.get().get()->best_effort_timestamp;
+        return std::move(frame);
+    };
+
+    auto pipe = luma_av::views::read_input(reader) 
+        | std::views::filter(is_video) | luma_av::views::decode_drain(decoder)
+        | std::views::transform(set_frame_pts);
+    
+    
+    const auto display = [&](const auto& frame_res) {
+        auto const& frame = frame_res.value().get();
+        my_display_frame(frame.get(), sink_timebase);
+    };
+    std::ranges::for_each(pipe, display);
 }
 
 

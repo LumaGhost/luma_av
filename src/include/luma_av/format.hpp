@@ -8,13 +8,222 @@ https://www.ffmpeg.org/doxygen/3.3/group__libavf.html
 
 extern "C" {
 #include <libavformat/avformat.h>
+#include <libavutil/file.h>
 }
 
+#include <map>
+
 #include <luma_av/packet.hpp>
+// we only need the buffer but its not in its own header yet
+#include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>
 
 namespace luma_av {
+
+class MappedFileBuff {
+    struct BuffInfo {
+        uint8_t* buff = nullptr;
+        std::size_t size{};
+    };
+    struct UnmapDeleter {
+        void operator()(BuffInfo* buff) noexcept {
+            if (!buff) {
+                return;
+            }
+            av_file_unmap(buff->buff, buff->size);
+            delete buff;
+        }
+    };
+    using unique_mapbuff = std::unique_ptr<BuffInfo, UnmapDeleter>;
+    unique_mapbuff buff_{};
+    MappedFileBuff(BuffInfo* buff) noexcept :  buff_{buff} {
+
+    }
+    public:
+    static result<MappedFileBuff> make(cstr_view filename) noexcept {
+        uint8_t* buff = nullptr;
+        std::size_t size{};
+        LUMA_AV_OUTCOME_TRY_FF(av_file_map(filename.c_str(), &buff, &size, 0, NULL));
+        return MappedFileBuff(new BuffInfo{buff, size});
+    }
+
+    std::span<uint8_t> span() noexcept {
+        return {buff_->buff, buff_->size};
+    }
+    std::span<const uint8_t> span() const noexcept {
+        return {buff_->buff, buff_->size};
+    }
+
+    uint8_t* data() noexcept {
+        return buff_->buff;
+    }
+    const uint8_t* data() const noexcept {
+        return buff_->buff;
+    }
+
+    std::size_t size() const noexcept {
+        return buff_->size;
+    }
+
+    int ssize() const noexcept {
+        return static_cast<int>(buff_->size);
+    }
+};
+
+namespace detail {
+
+struct CustomAvioReadTag {};
+struct CustomAvioWriteTag {};
+template <class F>
+struct FptrCaller {
+    static int ReadPacket(void *opaque, uint8_t *buf, int buf_size) {
+        F* f = reinterpret_cast<F*>(opaque);
+        return std::invoke(*f, CustomAvioReadTag{}, buf, buf_size);
+    }
+    static int WritePacket(void *opaque, uint8_t *buf, int buf_size) {
+        F* f = reinterpret_cast<F*>(opaque);
+        return std::invoke(*f, CustomAvioWriteTag{}, buf, buf_size);
+    }
+    static int64_t Seek(void *opaque, int64_t offset, int whence) {
+        F* f = reinterpret_cast<F*>(opaque);
+        return std::invoke(*f, offset, whence);
+    }
+};
+};
+
+
+class CustomIOFunctions {
+    public:
+    CustomIOFunctions() noexcept = default;
+
+    template <class F>
+    requires std::convertible_to<std::invoke_result_t<F, uint8_t*, int>, int>
+    CustomIOFunctions& SetCustomRead(F&& f) noexcept {
+        custom_read_ = std::forward<F>(f);
+        return *this;
+    }
+    template <class F>
+    requires std::convertible_to<std::invoke_result_t<F, uint8_t*, int>, int>
+    CustomIOFunctions& SetCustomWrite(F&& f) noexcept {
+        custom_write_ = std::forward<F>(f);
+        return *this;
+    }
+
+    template <class F>
+    requires std::is_same_v<std::invoke_result_t<F, int64_t, int>, int64_t>
+    CustomIOFunctions& SetCustomSeek(F&& f) noexcept {
+        custom_seek_ = std::forward<F>(f);
+        return *this;
+    }
+
+    auto CustomReadPtr() const noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
+        if (custom_read_) {
+            return &detail::FptrCaller<CustomIOFunctions>::ReadPacket;
+        } else {
+            return nullptr;
+        }
+    }
+    auto CustomWritePtr() const noexcept -> int(*)(void *opaque, uint8_t *buf, int buf_size) {
+        if (custom_write_) {
+            return &detail::FptrCaller<CustomIOFunctions>::WritePacket;
+        } else {
+            return nullptr;
+        }
+    }
+    auto CustomSeekPtr() const noexcept -> int64_t(*)(void *opaque, int64_t offset, int whence) {
+        if (custom_seek_) {
+            return &detail::FptrCaller<CustomIOFunctions>::Seek;
+        } else {
+            return nullptr;
+        }
+    }
+
+    int operator()(detail::CustomAvioReadTag, uint8_t *buf, int buf_size) noexcept {
+        LUMA_AV_ASSERT(custom_read_);
+        return custom_read_(buf, buf_size);
+    }
+
+    int operator()(detail::CustomAvioWriteTag, uint8_t *buf, int buf_size) noexcept {
+        LUMA_AV_ASSERT(custom_write_);
+        return custom_write_(buf, buf_size);
+    }
+
+    int64_t operator()(int64_t offset, int whence) noexcept {
+        LUMA_AV_ASSERT(custom_seek_);
+        return custom_seek_(offset, whence);
+    }
+
+
+
+    private:
+    std::function<int(uint8_t *buf, int buf_size)> custom_read_;
+    std::function<int(uint8_t *buf, int buf_size)> custom_write_;
+    std::function<int64_t(int64_t offset, int whence)> custom_seek_;
+};
+
+
+class IOContext {
+    struct AVIOCDeleter {
+        void operator()(AVIOContext* s) noexcept {
+            if (s) {
+                av_freep(&s->buffer);
+            }
+            avio_context_free(&s);	
+        }
+    };
+    using unique_ioc = std::unique_ptr<AVIOContext, AVIOCDeleter>;
+
+    static result<unique_ioc> InitIOC(unsigned char* buffer, int buffer_size, int write_flag, void* opaque, 
+                               int(*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+                               int(*write_packet)(void *opaque, uint8_t *buf, int buf_size),
+                               int64_t(*seek)(void *opaque, int64_t offset, int whence)) {
+        auto ioc = avio_alloc_context(buffer, buffer_size,
+                                      write_flag, opaque, read_packet, write_packet, seek);
+        if (!ioc) {
+            return errc::alloc_failure;
+        } else {
+            return unique_ioc{ioc};
+        }
+    }
+    std::unique_ptr<CustomIOFunctions> custom_functions_;
+    unique_ioc ioc_;
+    IOContext(std::unique_ptr<CustomIOFunctions> custom_functions, AVIOContext* ioc) noexcept
+        : custom_functions_{std::move(custom_functions)}, ioc_{ioc} {}
+
+    public:
+
+    static result<IOContext> make(Owner<uint8_t*> buff, int size, CustomIOFunctions custom_functions = {}) noexcept {
+        auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
+        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff, size, 1, custom_funcs.get(),
+                                            custom_funcs->CustomReadPtr(),
+                                            custom_funcs->CustomWritePtr(),
+                                            custom_funcs->CustomSeekPtr()));
+        return IOContext(std::move(custom_funcs), ctx.release());
+    }
+
+    static result<IOContext> make(int size, CustomIOFunctions custom_functions = {}) noexcept {
+        LUMA_AV_OUTCOME_TRY(buff, Buffer::make(static_cast<std::size_t>(size)));
+        auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
+        // ioc needs ownership of the input buffer but doesnt free on failure
+        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff.data(), size, 1, custom_funcs.get(),
+                                            custom_funcs->CustomReadPtr(),
+                                            custom_funcs->CustomWritePtr(),
+                                            custom_funcs->CustomSeekPtr()));
+        // so we release our ownership of buff only after the ioc is created
+        // its ok to not assign the ptr cause the ioc owns the memory at this pointer
+        static_cast<void>(buff.release());
+        return IOContext(std::move(custom_funcs), ctx.release());
+    }
+
+
+    AVIOContext* get() noexcept {
+        ioc_.get();
+    }
+    const AVIOContext* get() const noexcept {
+        return ioc_.get();
+    }
+};
 
 /*
 Most importantly an AVFormatContext contains:
@@ -61,13 +270,58 @@ class format_context {
         }
     }
 
+
+    struct StreamInfo {
+        std::size_t stream_idx{};
+        const AVCodec* codec = nullptr;
+    };
+    class StreamInfoMap {
+        public:
+        StreamInfoMap(AVFormatContext* fctx) : parent_ctx_{fctx} {
+
+        }
+        result<void> LookForStream(AVMediaType type) noexcept {
+            AVCodec* codec = nullptr;
+            auto ret = av_find_best_stream(parent_ctx_, type, -1, -1, &codec, 0);
+            if (ret < 0) {
+                return errc{ret};
+            }
+            streams_infos_.insert_or_assign(type, StreamInfo{ret, codec});
+            return luma_av::outcome::success();
+        }
+        bool Contains(AVMediaType type) noexcept {
+            return streams_infos_.contains(type);
+        }
+        StreamInfo At(AVMediaType type) noexcept {
+            LUMA_AV_ASSERT(Contains(type));
+            return streams_infos_.at(type);
+        }
+        result<StreamInfo> operator[](AVMediaType type) noexcept {
+            if (!streams_infos_.contains(type)) {
+                LUMA_AV_OUTCOME_TRY(LookForStream(type));
+            } else {
+                return At(type);
+            }
+        }
+        private:
+        AVFormatContext* parent_ctx_;
+        std::map<AVMediaType, StreamInfo> streams_infos_;
+    };
     unique_fctx fctx_{};
+    StreamInfoMap streams_;
+    std::optional<IOContext> ioc_;
 
     format_context() noexcept = default;
     format_context(AVFormatContext* ctx) noexcept
-        : fctx_{ctx} {
+        : fctx_{ctx}, streams_{ctx} {
 
     }
+    format_context(AVFormatContext* ctx, IOContext ioc) noexcept
+        : fctx_{ctx}, streams_{ctx}, ioc_{std::move(ioc)} {
+
+    }
+
+
     public:
 
     ~format_context() noexcept = default;
@@ -81,16 +335,33 @@ class format_context {
         return format_context{ctx.release()};
     }
 
-    static result<format_context> make(const cstr_view url) noexcept {
-        AVFormatContext* fctx = nullptr;\
+    static result<format_context> open_input(const cstr_view url) noexcept {
+        AVFormatContext* fctx = nullptr;
         LUMA_AV_OUTCOME_TRY_FF(avformat_open_input(&fctx, url.c_str(), nullptr, nullptr));
-        auto ctx = format_context{fctx};
-        LUMA_AV_OUTCOME_TRY(ctx.find_stream_info(nullptr));
-        return ctx;
+        return format_context{fctx};
     }
 
-    result<void> find_stream_info(AVDictionary** options) noexcept {
-        return detail::ffmpeg_code_to_result(avformat_find_stream_info(fctx_.get(), options));
+    static result<format_context> open_input(IOContext ioc) noexcept {
+        LUMA_AV_OUTCOME_TRY(fctx, alloc_format_ctx());
+        fctx->pb = ioc.get();
+        // note: open_input needs ownership of fctx cause it will free on failure :/
+        auto fptr = fctx.release();
+        LUMA_AV_OUTCOME_TRY_FF(avformat_open_input(&fptr, nullptr, nullptr, nullptr));
+        return format_context{fptr, std::move(ioc)};
+    }
+
+    result<void> FindStreamInfo(AVDictionary** options = nullptr) noexcept {
+        LUMA_AV_OUTCOME_TRY_FF(avformat_find_stream_info(fctx_.get(), options));
+        return luma_av::outcome::success();
+    }
+
+    result<std::pair<std::size_t, const AVCodec*>> GetOrFindStream(AVMediaType type) noexcept {
+        LUMA_AV_OUTCOME_TRY(info, streams_[type]);
+        return {info.stream_idx, info.codec};
+    }
+    std::pair<std::size_t, const AVCodec*> GetStream(AVMediaType type) noexcept {
+        auto info = streams_.At(type);
+        return {info.stream_idx, info.codec};
     }
 
     // lighest weight easiest to misuse
@@ -107,6 +378,13 @@ class format_context {
         LUMA_AV_OUTCOME_TRY(this->read_frame(pkt));
         return std::move(pkt);
     }
+
+    AVFormatContext* get() noexcept {
+        return fctx_.get();
+    }
+    const AVFormatContext* get() const noexcept {
+        return fctx_.get();
+    }
 };
 
 /**
@@ -119,7 +397,8 @@ class Reader {
         return Reader{std::move(fctx), std::move(pkt)};
     }
     static result<Reader> make(const cstr_view url) noexcept {
-        LUMA_AV_OUTCOME_TRY(fctx, format_context::make(url));
+        LUMA_AV_OUTCOME_TRY(fctx, format_context::open_input(url));
+        LUMA_AV_OUTCOME_TRY(fctx.FindStreamInfo());
         LUMA_AV_OUTCOME_TRY(pkt, packet::make());
         return Reader{std::move(fctx), std::move(pkt)};
     }

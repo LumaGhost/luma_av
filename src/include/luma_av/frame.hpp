@@ -42,6 +42,10 @@ class Buffer {
         return Buffer{buff, size};
     }
 
+    Owner<uint8_t*> release() noexcept {
+        return buff_.release();
+    }
+
     uint8_t* data() noexcept {
         return buff_.get();
     }

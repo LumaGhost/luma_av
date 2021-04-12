@@ -33,6 +33,7 @@ enum class errc : int
   parser_not_found,
   parser_hungry_uwu,
   detail_parser_range_end,
+  detail_filter_range_end,
   filter_not_found,
   end, // no more data will be sent
   again // no data yet but if u send again u may get some

@@ -69,10 +69,10 @@ TEST(FilterVideoExample, MyExample) {
             .PixFormat(dec_ctx.get()->pix_fmt)
             .AspectRatio(dec_ctx.get()->sample_aspect_ratio)
             .TimeBase(time_base);
-    auto src_filt = luma_av::FindFilter("buffer"_cv).value();
+    const auto src_filt = luma_av::FindFilter("buffer"_cv).value();
     filter_graph.CreateSrcFilter(src_filt, "in"_cv, filter_args).value();
 
-    auto sink_filt = luma_av::FindFilter("buffer"_cv).value();
+    const auto sink_filt = luma_av::FindFilter("buffersink"_cv).value();
     filter_graph.CreateSinkFilter(src_filt, "out"_cv).value();
     
     std::vector<AVPixelFormat> pix_fmts{AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE};
@@ -84,6 +84,7 @@ TEST(FilterVideoExample, MyExample) {
 
     auto reader = luma_av::Reader::make(std::move(fctx)).value();
     auto decoder = luma_av::Decoder::make(std::move(dec_ctx)).value();
+    auto filter = luma_av::FilterSession::make(std::move(filter_graph)).value();
 
     const auto is_video = [&](auto const& pkt_res){
         if(pkt_res.has_value()) {
@@ -100,11 +101,11 @@ TEST(FilterVideoExample, MyExample) {
 
     auto pipe = luma_av::views::read_input(reader) 
         | std::views::filter(is_video) | luma_av::views::decode_drain(decoder)
-        | std::views::transform(set_frame_pts);
+        | std::views::transform(set_frame_pts) | luma_av::views::filter_graph(filter);
     
     
     const auto display = [&](const auto& frame_res) {
-        auto const& frame = frame_res.value().get();
+        auto const& frame = *frame_res.value();
         my_display_frame(frame.get(), sink_timebase);
     };
     std::ranges::for_each(pipe, display);

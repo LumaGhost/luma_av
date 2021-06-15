@@ -58,7 +58,8 @@ namespace detail
       constexpr auto buff_size = AV_ERROR_MAX_STRING_SIZE;
       char err_buff[buff_size];
       auto ec = av_strerror(errnum, err_buff, buff_size);
-      return std::string(err_buff, buff_size);
+      auto av_msg = std::string(err_buff, buff_size);
+      return std::string{"luma_av: error ffmpeg api: "}.append(av_msg);
     }
   };
 } // detail

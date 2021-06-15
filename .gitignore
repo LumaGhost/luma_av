@@ -31,3 +31,5 @@ build/*
 *.exe
 *.out
 *.app
+
+/test_vids/

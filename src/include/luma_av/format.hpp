@@ -110,6 +110,18 @@ class CustomIOFunctions {
         return custom_seek_;
     }
 
+    auto& CustomRead() noexcept {
+        return custom_read_;
+    }
+
+    auto& CustomWrite() noexcept {
+        return custom_write_;
+    }
+
+    auto& CustomSeek() noexcept {
+        return custom_seek_;
+    }
+
     private:
     std::function<int(uint8_t *buf, int buf_size)> custom_read_;
     std::function<int(uint8_t *buf, int buf_size)> custom_write_;
@@ -193,7 +205,7 @@ class IOContext {
 
     static result<IOContext> make(Owner<uint8_t*> buff, int size, CustomIOFunctions custom_functions = {}) noexcept {
         auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
-        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff, size, 1, custom_funcs.get(),
+        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff, size, 0, custom_funcs.get(),
                                             detail::CustomReadPtr(*custom_funcs),
                                             detail::CustomWritePtr(*custom_funcs),
                                             detail::CustomSeekPtr(*custom_funcs)));
@@ -204,7 +216,7 @@ class IOContext {
         LUMA_AV_OUTCOME_TRY(buff, Buffer::make(static_cast<std::size_t>(size)));
         auto custom_funcs = std::make_unique<CustomIOFunctions>(std::move(custom_functions));
         // ioc needs ownership of the input buffer but doesnt free on failure
-        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff.data(), size, 1, custom_funcs.get(),
+        LUMA_AV_OUTCOME_TRY(ctx, InitIOC(buff.data(), size, 0, custom_funcs.get(),
                                             detail::CustomReadPtr(*custom_funcs),
                                             detail::CustomWritePtr(*custom_funcs),
                                             detail::CustomSeekPtr(*custom_funcs)));

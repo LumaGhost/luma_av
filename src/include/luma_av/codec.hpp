@@ -397,7 +397,12 @@ class Decoder {
     }
     result<void> recieve_frame() noexcept {
         auto ec = avcodec_receive_frame(ctx_.get(), decoder_frame_.get());
-        return detail::ffmpeg_code_to_result(ec);
+        if (!ec) {
+            decoder_frame_.update_buffer_params();
+            return luma_av::outcome::success();
+        } else {
+            return detail::ffmpeg_code_to_result(ec);
+        }
     }
 
     Frame const& view_frame() noexcept {
@@ -672,7 +677,15 @@ bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
 
 bool operator==(iterator const& other) const 
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
-    return parent_->dec_ == other.parent_->dec_ &&
+
+    auto dec_or_null = [](auto parent) -> typename parent_t::coder_type* {
+        if (parent) {
+            return parent->dec_;
+        } else {
+            return nullptr;
+        }
+    };
+    return dec_or_null(parent_) == dec_or_null(other.parent_) &&
     current_ == other.current_ &&
     draining_ == other.draining_ &&
     done_draining_ == other.done_draining_ &&

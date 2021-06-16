@@ -96,7 +96,7 @@ class Frame {
     }
 
     Frame(AVFrame* frame) noexcept : frame_{frame} {
-
+        
     }
     using This = Frame;
 
@@ -128,6 +128,40 @@ class Frame {
     }
 
     using FrameBufferParams = std::variant<VideoParams, AudioParams>;
+
+    /**
+        if the frame satisfies the object invariant return FrameBufferParams
+        representing the frames parameters
+        otherwise return none
+    */
+    static std::optional<FrameBufferParams> rip_buffer_params(AVFrame const* frame, int align) {
+        // a buffer is always a requirement
+        if (!frame->data) {
+            return std::nullopt;
+        }
+
+        // video frame
+        if (frame->linesize) {
+            // its gona be callers bug if width/height/format arent set but buffers are
+            //  i cant rly safely work with those buffers without that info
+            //  like thats kinda the point of this class. if u have buffers but no params
+            //  i legit cant use ur frame
+            LUMA_AV_ASSERT(frame->width != 0);
+            LUMA_AV_ASSERT(frame->height != 0);
+            LUMA_AV_ASSERT(frame->format != 0);
+            return VideoParams {.width = frame->width,
+                                .height= frame->height,
+                                .format= static_cast<AVPixelFormat>(frame->format),
+                                .alignment=align};
+        } else { // audio frame
+            LUMA_AV_ASSERT(frame->nb_samples != 0);
+            LUMA_AV_ASSERT(frame->channel_layout != 0);
+            return AudioParams{
+                    .nb_samples=frame->nb_samples,
+                    .channel_layout=frame->channel_layout,
+                    .alignment=align};
+        }
+    }
     /**
     current invariant (wip):
         - frame is never null (except after move. but use after move is not supported outside of assignment)
@@ -167,28 +201,45 @@ class Frame {
         buff_par_ = par;
         return luma_av::outcome::success();
     }
-
     static result<This> make() noexcept {
         LUMA_AV_OUTCOME_TRY(frame, checked_frame_alloc());
         return This{frame.release()};
     }
 
+    static constexpr auto default_alignment = int{32};
+
+    /**
+    for if u modify the frame using the underlying pointer
+    calling this function syncs the internal invariant with
+    the AVFrame itself
+    */
+    void update_buffer_params(int align = default_alignment) {
+        buff_par_ = rip_buffer_params(frame_.get(), align);
+    }
+
+
     // not sure i can actually do this without violating my invariant
     // how do i check for buffers etc?
     static This FromOwner(AVFrame* owned_frame) noexcept {
-        return This{owned_frame};
+        auto frame = This{owned_frame};
+        frame.buff_par_ = rip_buffer_params(frame.get(), default_alignment);
+        return std::move(frame);
     }
+
     struct shallow_copy_t{};
     static constexpr auto shallow_copy = shallow_copy_t{};
 
     // same here. need a way to know if we need to initialize the buffer params
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
-    static result<This> make(const NonOwning<Frame> in_frame, shallow_copy_t) noexcept {
+    static result<This> make(const NonOwning<Frame> in_frame, shallow_copy_t,
+                             int alignment = default_alignment) noexcept {
         auto* new_frame = av_frame_clone(in_frame.ptr());
         if (!new_frame) {
             return luma_av::outcome::failure(errc::alloc_failure);
         }
-        return This{new_frame};
+        auto out_frame = This{new_frame};
+        out_frame.buff_par_ = rip_buffer_params(out_frame.get(), alignment);
+        return std::move(out_frame);
     }
 
     static result<This> make(FrameBufferParams const& par) noexcept {

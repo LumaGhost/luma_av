@@ -38,7 +38,7 @@ unique_parser_ctx parser_;
 CodecContext codec_ctx_;
 
 ParserContext(AVCodecParserContext* parser, CodecContext codec_ctx) noexcept
-    : parser_{parser}, codec_ctx_{std::move(codec_ctx_)}  {
+    : parser_{parser}, codec_ctx_{std::move(codec_ctx)}  {
 
 }
 
@@ -295,7 +295,14 @@ bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
 
 bool operator==(iterator const& other) const 
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
-    return parent_->parser_ == other.parent_->parser_ &&
+    auto parser_or_null = [](auto parent) -> Parser* {
+        if (parent) {
+            return parent->parser_;
+        } else {
+            return nullptr;
+        }
+    };
+    return parser_or_null(parent_) == parser_or_null(other.parent_) &&
     current_ == other.current_ &&
     done_parsing_uwu_ == other.done_parsing_uwu_ &&
     current_span_.data() == other.current_span_.data() &&

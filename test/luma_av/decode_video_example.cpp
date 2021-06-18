@@ -38,6 +38,9 @@ extern "C" {
 #include <luma_av/parser.hpp>
 #include <luma_av/swscale.hpp>
 
+static auto kFileName = "./test_vids/fortnite_mpeg1_cut.mp4";
+static auto kOutputFile = "./test_vids/outputs/output_uwu";
+
 #define INBUF_SIZE 4096
 static void pgm_save(const uint8_t* buf, int wrap, int xsize, int ysize,
                      const char *filename)
@@ -54,8 +57,8 @@ static void pgm_save(const uint8_t* buf, int wrap, int xsize, int ysize,
 TEST(DecodeVideoExample, MyExample) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto decoder = luma_av::Decoder::make(AV_CODEC_ID_MPEG1VIDEO).value();
-    auto filename    = "argv[1]";
-    auto outfilename = "argv[2]";
+    auto filename    = kFileName;
+    auto outfilename = kOutputFile;
     FILE* f = fopen(filename, "rb");
     if (!f) {
         fprintf(stderr, "Could not open %s\n", filename);
@@ -68,14 +71,18 @@ TEST(DecodeVideoExample, MyExample) {
     /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
     memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
 
-    auto save_frames = [&, frame_num = 0](const auto& res) mutable {
+    int frame_num = 0;
+    auto save_frames = [&](const auto& res) mutable {
+        if (!res) {
+            std::cout << "error!!! " << res.error().message() << std::endl;
+        }
         auto&& frame = res.value().get();
         printf("saving frame %3d\n", frame_num);
         fflush(stdout);
         char buf[1024];
         /* the picture is allocated by the decoder. no need to
         free it */
-        snprintf(buf, sizeof(buf), "%s-%d", outfilename, frame_num);
+        snprintf(buf, sizeof(buf), "%s-%d.pgm", outfilename, frame_num);
         pgm_save(frame.data()[0], frame.linesize()[0],
             frame.width(), frame.height(), buf);
         ++frame_num;
@@ -100,8 +107,8 @@ TEST(DecodeVideoExample, MyExampleStdFileScaling) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto decoder = luma_av::Decoder::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto sws = luma_av::ScaleSession::make(luma_av::ScaleOpts{640_w, 460_h, AV_PIX_FMT_RGB24}).value();
-    auto filename    = "argv[1]";
-    auto outfilename = "argv[2]";
+    auto filename    = kFileName;
+    auto outfilename = kOutputFile;
 
     std::ifstream ifs(filename, std::ios::binary);
     LUMA_AV_ASSERT(ifs.is_open());
@@ -182,8 +189,8 @@ TEST(DecodeVideoExample, FullFFmpegExample)
     //             "And check your input file is encoded by mpeg1video please.\n", argv[0]);
     //     exit(0);
     // }
-    filename    = "argv[1]"; // theyre intentionally in quote rn
-    outfilename = "argv[2]";
+    filename    = kFileName;
+    outfilename = kOutputFile;
     pkt = av_packet_alloc();
     if (!pkt)
         exit(1);

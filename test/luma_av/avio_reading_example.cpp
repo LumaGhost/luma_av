@@ -15,6 +15,21 @@ extern "C" {
 #include <luma_av/parser.hpp>
 #include <luma_av/swscale.hpp>
 
+static auto kFileName = "./test_vids/fortnite_uwu.mp4";
+
+/**
+verify that our MappedFileBuff aggrees with av_file_map on the size of the file
+*/
+TEST(AVIOreadTests, file_map) {
+    uint8_t *buffer = NULL;
+    size_t buffer_size;
+    const auto input_filename = luma_av::cstr_view{kFileName};
+    ASSERT_EQ(av_file_map(input_filename.c_str(), &buffer, &buffer_size, 0, NULL), 0);
+    av_file_unmap(buffer, buffer_size);
+    
+    const auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
+    ASSERT_EQ(map_buff.size(), buffer_size);
+}
 
 /**
  * @file
@@ -30,7 +45,7 @@ struct BufferData {
 };
 TEST(AvioReadingExample, MyExample) { 
 
-    const auto input_filename = luma_av::cstr_view{"argv[1]"};
+    const auto input_filename = luma_av::cstr_view{kFileName};
     auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
 
     auto custom_reader = 
@@ -89,7 +104,7 @@ TEST(AvioReadingExample, FfmpegExample) {
     //             "accessed through AVIOContext.\n", argv[0]);
     //     return 1;
     // }
-    input_filename = "argv[1]";
+    input_filename = const_cast<char*>(kFileName);
     /* slurp file content into buffer */
     ret = av_file_map(input_filename, &buffer, &buffer_size, 0, NULL);
     if (ret < 0)

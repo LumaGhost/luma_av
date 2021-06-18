@@ -605,6 +605,7 @@ output_type operator*() const {
                 auto out = output_type{res.value()};
                 cached_frame_ = out;
                 skip_count_ = -1;
+                ++current_;  // increment for the next time operator* is called
                 return out;
             } else {
                 skip_count_ -= 1;

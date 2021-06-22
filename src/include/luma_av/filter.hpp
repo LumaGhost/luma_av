@@ -175,8 +175,9 @@ class FilterGraph {
         inputs->pad_idx    = 0;
         inputs->next       = nullptr;
 
-        auto iptr = inputs.get();
-        auto optr = outputs.get();
+        // the parse call may take ownership
+        auto iptr = inputs.release();
+        auto optr = outputs.release();
         LUMA_AV_OUTCOME_TRY_FF(avfilter_graph_parse_ptr(fg_.get(), filters_descr.c_str(),
                                     &iptr, &optr, nullptr));
         // the parse call may reseat these to something we have to free
@@ -370,6 +371,7 @@ output_type operator*() const {
                 auto out = output_type{res.value()};
                 cached_frame_ = out;
                 skip_count_ = -1;
+                ++current_;
                 return out;
             } else {
                 skip_count_ -= 1;
@@ -411,11 +413,18 @@ bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
 
 bool operator==(iterator const& other) const 
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
-    return parent_->filter_ == other.parent_->filter_ &&
-    current_ == other.current_ &&
-    reached_eof_ == other.reached_eof_ &&
-    skip_count_ == other.skip_count_ &&
-    cached_frame_.has_value() == other.cached_frame_.has_value();
+    auto filter_or_null = [](auto parent) -> FilterSession* {
+        if (parent) {
+            return parent->filter_;
+        } else {
+            return nullptr;
+        }
+    };
+    return filter_or_null(parent_) == filter_or_null(other.parent_) &&
+        current_ == other.current_ &&
+        reached_eof_ == other.reached_eof_ &&
+        skip_count_ == other.skip_count_ &&
+        cached_frame_.has_value() == other.cached_frame_.has_value();
 }
 
 };

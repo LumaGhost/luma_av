@@ -309,6 +309,7 @@ class format_context {
         result<StreamInfo> operator[](AVMediaType type) noexcept {
             if (!streams_infos_.contains(type)) {
                 LUMA_AV_OUTCOME_TRY(LookForStream(type));
+                return At(type);
             } else {
                 return At(type);
             }
@@ -456,7 +457,7 @@ class Reader {
     }
     private:
     Reader(format_context fctx, packet reader_packet) 
-        : reader_packet_{std::move(reader_packet)}, fctx_{std::move(fctx_)} {}
+        : reader_packet_{std::move(reader_packet)}, fctx_{std::move(fctx)} {}
     packet reader_packet_;
     format_context fctx_;
 
@@ -612,11 +613,18 @@ bool operator==(std::ranges::sentinel_t<base_t> const& other) const {
 
 bool operator==(iterator const& other) const 
 requires std::equality_comparable<std::ranges::iterator_t<base_t>> {
-    return parent_->reader_ == other.parent_->reader_ &&
-    current_ == other.current_ &&
-    reached_eof_ == other.reached_eof_ &&
-    skip_count_ == other.skip_count_ &&
-    cached_packet_.has_value() == other.cached_packet_.has_value();
+    auto reader_or_null = [](auto parent) -> Reader* {
+        if (parent) {
+            return parent->reader_;
+        } else {
+            return nullptr;
+        }
+    };
+    return reader_or_null(parent_) == reader_or_null(parent_) &&
+        current_ == other.current_ &&
+        reached_eof_ == other.reached_eof_ &&
+        skip_count_ == other.skip_count_ &&
+        cached_packet_.has_value() == other.cached_packet_.has_value();
 }
 
 };

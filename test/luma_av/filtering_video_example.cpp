@@ -22,6 +22,7 @@ extern "C" {
 
 using namespace luma_av_literals;
 
+static auto kFileName = "./test_vids/fortnite_mpeg1_cut.mp4";
 
 TEST(FilterVideoExample, MyExample) {
 
@@ -54,7 +55,7 @@ TEST(FilterVideoExample, MyExample) {
         fflush(stdout);
     };
 
-    const auto input_filename = luma_av::cstr_view{"argv[1]"};
+    const auto input_filename = luma_av::cstr_view{kFileName};
     auto fctx = luma_av::format_context::open_input(input_filename).value();
     fctx.FindStreamInfo().value();
     fctx.FindBestStream(AVMEDIA_TYPE_VIDEO).value();
@@ -73,7 +74,7 @@ TEST(FilterVideoExample, MyExample) {
     filter_graph.CreateSrcFilter(src_filt, "in"_cv, filter_args).value();
 
     const auto sink_filt = luma_av::FindFilter("buffersink"_cv).value();
-    filter_graph.CreateSinkFilter(src_filt, "out"_cv).value();
+    filter_graph.CreateSinkFilter(sink_filt, "out"_cv).value();
     
     std::vector<AVPixelFormat> pix_fmts{AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE};
     filter_graph.SetSinkFilterFormats(pix_fmts).value();
@@ -272,7 +273,7 @@ TEST(FilterVideo, FfmpegExample)
         perror("Could not allocate frame");
         exit(1);
     }
-    if ((ret = open_input_file("argv[1]")) < 0)
+    if ((ret = open_input_file(kFileName)) < 0)
         goto end;
     if ((ret = init_filters(filter_descr)) < 0)
         goto end;
@@ -325,5 +326,4 @@ end:
         fprintf(stderr, "Error occurred: %s\n", "av_err2str(ret)");
         exit(1);
     }
-    exit(0);
 }

@@ -58,8 +58,11 @@ namespace detail
       constexpr auto buff_size = AV_ERROR_MAX_STRING_SIZE;
       char err_buff[buff_size];
       auto ec = av_strerror(errnum, err_buff, buff_size);
+      if (ec != 0) {
+        return std::string{"luma_av: error ffmpeg api: "}.append("unknown error code: ").append(std::to_string(errnum));
+      }
       auto av_msg = std::string(err_buff, buff_size);
-      return std::string{"luma_av: error ffmpeg api: "}.append(av_msg);
+      return std::string{"luma_av: error ffmpeg api: "}.append(std::move(av_msg));
     }
   };
 } // detail
@@ -76,12 +79,12 @@ inline std::error_code make_error_code(luma_av::errc e) noexcept {
   return {static_cast<int>(e), errc_category()};
 }
 
-#ifdef LUMA_AV_NOEXCEPT_NOVALUE_POLICY
-template <class T>
-using result = luma_av::outcome::std_result<T, luma_av::error_code, luma_av::outcome::policy::terminate>;
-#else 
+#ifdef LUMA_AV_EXCEPTION_NOVALUE_POLICY
 template <class T>
 using result = luma_av::outcome::std_result<T, luma_av::error_code>;
+#else 
+template <class T>
+using result = luma_av::outcome::std_result<T, luma_av::error_code, luma_av::outcome::policy::terminate>;
 #endif // LUMA_AV_NOEXCEPT_NOVALUE_POLICY
 
 
@@ -95,10 +98,10 @@ inline constexpr auto noexcept_stdlib = false;
 namespace detail {
 
 inline result<void> as_result(int ffmpeg_code) noexcept {
-  if (ffmpeg_code == 0) {
-    return luma_av::outcome::success();
-  } else {
+  if (ffmpeg_code < 0) {
     return luma_av::make_error_code(luma_av::errc{ffmpeg_code});
+  } else {
+    return luma_av::outcome::success();
   }
 }
 

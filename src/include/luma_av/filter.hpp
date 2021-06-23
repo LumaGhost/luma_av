@@ -74,7 +74,7 @@ std::string FormatFilterArgs(ArgPairs const& args) noexcept {
 }
 
 namespace detail {
-const char* null_if_empty(std::string const& s) noexcept {
+inline const char* null_if_empty(std::string const& s) noexcept {
     if (s.empty()) {
         return nullptr;
     } else {
@@ -90,7 +90,7 @@ struct FilterInOutDeleter {
 
 using unique_filter_inout = std::unique_ptr<AVFilterInOut, FilterInOutDeleter>;
 
-result<unique_filter_inout> AllocFilterInOut() noexcept {
+inline result<unique_filter_inout> AllocFilterInOut() noexcept {
     auto iof = avfilter_inout_alloc();
     if (!iof) {
         return errc::alloc_failure;
@@ -101,7 +101,7 @@ result<unique_filter_inout> AllocFilterInOut() noexcept {
 
 };
 
-result<const AVFilter*> FindFilter(const cstr_view name) noexcept {
+inline result<const AVFilter*> FindFilter(const cstr_view name) noexcept {
     auto filt = avfilter_get_by_name(name.c_str());
     if (!filt) {
         return errc::filter_not_found;

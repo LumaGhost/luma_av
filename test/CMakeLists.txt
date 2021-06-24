@@ -15,7 +15,8 @@ add_executable(luma_av_tests test_main.cpp
                              luma_av/frame_tests.cpp
                              luma_av/codec_tests.cpp
                              luma_av/result_tests.cpp
-                             luma_av/filter_int_tests.cpp)
+                             luma_av/filter_int_tests.cpp
+                             luma_av/avio_reading_int_tests.cpp)
 target_compile_features(luma_av_tests PUBLIC cxx_std_17)
 target_include_directories(luma_av_tests PUBLIC 
    ${CMAKE_CURRENT_SOURCE_DIR}/src/include

@@ -15,23 +15,37 @@ extern "C" {
 #include <luma_av/parser.hpp>
 #include <luma_av/swscale.hpp>
 
+
+// we're gona redirect the ffmpeg logger to these (:
+//  dont think theres any other way to pass these to ffmpeg besides global
+static std::stringstream luma_output;
+static std::stringstream ffmpeg_output;
+
+
+static void log_callback_null(void *ptr, int level, const char *fmt, va_list vl){}
+
+static void log_callback_luma_av(void *ptr, int level, const char *fmt, va_list vl)
+{
+    char buff[1024];
+    const auto num_read = vsprintf(buff, fmt, vl);
+    luma_output << std::string(buff, num_read);
+}
+
+static void log_callback_ffmpeg(void *ptr, int level, const char *fmt, va_list vl)
+{
+    char buff[1024];
+    const auto num_read = vsprintf(buff, fmt, vl);
+    ffmpeg_output << std::string(buff, num_read);
+}
+
+
 static auto kFileName = "./test_vids/fortnite_uwu.mp4";
 
-
-/**
- * @file
- * libavformat AVIOContext API example.
- *
- * Make libavformat demuxer access media content through a custom
- * AVIOContext read callback.
- * @example avio_reading.c
- */
 struct BufferData {
     uint8_t *ptr;
     size_t size; ///< size left in the buffer
 };
-TEST(AvioReadingExample, MyExample) { 
-
+static void LumaAVReadExample() {
     const auto input_filename = luma_av::cstr_view{kFileName};
     auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
 
@@ -41,7 +55,7 @@ TEST(AvioReadingExample, MyExample) {
         buf_size = FFMIN(buf_size, bd.size);
         if (!buf_size)
             return AVERROR_EOF;
-        printf("ptr:%p size:%zu\n", bd.ptr, bd.size);
+        luma_output << bd.size << "\n";
         /* copy internal buffer data to buf */
         memcpy(buf, bd.ptr, buf_size);
         bd.ptr  += buf_size;
@@ -56,9 +70,10 @@ TEST(AvioReadingExample, MyExample) {
     auto fctx = luma_av::format_context::open_input(std::move(custom_io)).value();
     fctx.FindStreamInfo().value();
 
+    av_log_set_callback(log_callback_luma_av);
     av_dump_format(fctx.get(), 0, input_filename.c_str(), 0);
+    av_log_set_callback(av_log_default_callback);
 }
-
 
 struct buffer_data {
     uint8_t *ptr;
@@ -70,14 +85,14 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size)
     buf_size = FFMIN(buf_size, bd->size);
     if (!buf_size)
         return AVERROR_EOF;
-    printf("ptr:%p size:%zu\n", bd->ptr, bd->size);
+    ffmpeg_output << bd->size << "\n";
     /* copy internal buffer data to buf */
     memcpy(buf, bd->ptr, buf_size);
     bd->ptr  += buf_size;
     bd->size -= buf_size;
     return buf_size;
 }
-TEST(AvioReadingExample, FfmpegExample) {
+static void FfmpegReaderExample() {
     AVFormatContext *fmt_ctx = NULL;
     AVIOContext *avio_ctx = NULL;
     uint8_t *buffer = NULL, *avio_ctx_buffer = NULL;
@@ -125,7 +140,13 @@ TEST(AvioReadingExample, FfmpegExample) {
         fprintf(stderr, "Could not find stream information\n");
         goto end;
     }
+
+
+    av_log_set_callback(log_callback_ffmpeg);
     av_dump_format(fmt_ctx, 0, input_filename, 0);
+    av_log_set_callback(av_log_default_callback);
+
+
 end:
     avformat_close_input(&fmt_ctx);
     /* note: the internal buffer could have changed, and be != avio_ctx_buffer */
@@ -137,3 +158,29 @@ end:
         fprintf(stderr, "Error occurred: %s\n", "av_err2str(ret)");
     }
 }
+
+
+TEST(AVIOreadTests, FfmpegCompare) {
+    LumaAVReadExample();
+    FfmpegReaderExample();
+    auto luma_str = std::string{std::move(luma_output).str()};
+    auto ffmpeg_str = std::string{std::move(ffmpeg_output).str()};
+    ASSERT_EQ(luma_str, ffmpeg_str);
+}
+
+
+
+/**
+verify that our MappedFileBuff aggrees with av_file_map on the size of the file
+*/
+TEST(AVIOreadTests, file_map) {
+    uint8_t *buffer = NULL;
+    size_t buffer_size;
+    const auto input_filename = luma_av::cstr_view{kFileName};
+    ASSERT_EQ(av_file_map(input_filename.c_str(), &buffer, &buffer_size, 0, NULL), 0);
+    av_file_unmap(buffer, buffer_size);
+    
+    const auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
+    ASSERT_EQ(map_buff.size(), buffer_size);
+}
+

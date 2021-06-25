@@ -9,6 +9,7 @@ find_package(GTest REQUIRED)
 add_executable(luma_av_integration 
                avio_reading_int_tests.cpp 
                filter_int_tests.cpp
+               decode_video_int_tests.cpp
 )
 target_compile_features(luma_av_integration PUBLIC cxx_std_20)
 

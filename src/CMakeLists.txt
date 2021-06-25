@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.10)
 project (luma_av VERSION 0.0.0)
 
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS boost REQUIRED)
 find_package(ffmpeg REQUIRED)
 
 add_library(luma_av INTERFACE)
@@ -11,7 +11,7 @@ target_include_directories(luma_av INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(luma_av INTERFACE 
-    Boost::Boost
+    Boost::boost
     ffmpeg::ffmpeg
 )
 

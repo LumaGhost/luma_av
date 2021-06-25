@@ -15,7 +15,8 @@ class LumaAvConan(ConanFile):
         "shared": False,
         "ffmpeg:xcb": False,
         "ffmpeg:opus": False,
-        "ffmpeg:alsa": False
+        "ffmpeg:alsa": False,
+        "gtest:build_gmock": False
     }
     generators = "cmake_find_package"
     exports_sources = "src/*", "test/*", "CMakeLists.txt"

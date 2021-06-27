@@ -213,3 +213,85 @@ TEST(DecodeVideoIntegration, FfmpegComparison) {
     ASSERT_EQ(luma_frames.size(), ffmpeg_frames.size());
     ASSERT_EQ(luma_frames, ffmpeg_frames);
 }
+
+
+TEST(DecodeVideoIntegration, ParserConstructDestruct) {
+    auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
+}
+
+
+/**
+note: packet free'd first
+*/
+TEST(DecodeVideoIntegration, ParserParseOne) {
+    auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
+    auto filename    = kFileName;
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        fprintf(stderr, "Could not open %s\n", filename);
+        exit(1);
+    }
+    auto fc = luma_av::detail::finally([&](){
+        fclose(f);
+    });
+    uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+    /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
+    memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    
+    while (!feof(f)) {
+        /* read raw data from the input file */
+        auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
+        if (!data_size)
+            break;
+        std::span<const uint8_t> data(inbuf, data_size);
+        // this is a bug idk why i need to make a vector
+        //  a single view should work? i.e. std::views::single(data);
+        std::vector<std::span<const uint8_t>> v{data};
+        auto pipe = 
+            v | luma_av::views::parse_packets(parser);
+        std::vector<luma_av::packet> packets;
+        std::ranges::transform(pipe, std::back_inserter(packets), [](auto&& pkt_ref){
+            return luma_av::packet::make(pkt_ref.value().get(), luma_av::packet::shallow_copy).value();
+        });
+        if (!packets.empty()) {
+            break;
+        }
+    }
+}
+
+/**
+note: parser free'd first
+*/
+TEST(DecodeVideoIntegration, ParserFullParse) {
+    auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
+    auto filename    = kFileName;
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        fprintf(stderr, "Could not open %s\n", filename);
+        exit(1);
+    }
+    auto fc = luma_av::detail::finally([&](){
+        fclose(f);
+    });
+    uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+    /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
+    memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    
+    std::vector<luma_av::packet> parsed;
+    while (!feof(f)) {
+        /* read raw data from the input file */
+        auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
+        if (!data_size)
+            break;
+        std::span<const uint8_t> data(inbuf, data_size);
+        // this is a bug idk why i need to make a vector
+        //  a single view should work? i.e. std::views::single(data);
+        std::vector<std::span<const uint8_t>> v{data};
+        auto pipe = 
+            v | luma_av::views::parse_packets(parser);
+        std::ranges::transform(pipe, std::back_inserter(parsed), [](auto&& pkt_ref){
+                return luma_av::packet::make(pkt_ref.value().get(), luma_av::packet::shallow_copy).value();
+        });
+    }
+    ASSERT_FALSE(parsed.empty());
+}

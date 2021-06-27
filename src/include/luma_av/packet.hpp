@@ -121,11 +121,19 @@ class packet {
         return {pkt_.get()->data, pkt_.get()->size};
     }
 
-    result<void> reset_buffer(uint8_t* data, int size) const noexcept {
+    result<void> reset_buffer(luma_av::Owner<uint8_t*> data, int size) noexcept {
         // either ref coutned with on ref, or no buffer at all
         // otherwise i think this function leaks
         LUMA_AV_ASSERT(is_writable() || (!pkt_->buf && !pkt_->data));
         LUMA_AV_OUTCOME_TRY_FF(av_packet_from_data(pkt_.get(), data, size));
+        return luma_av::outcome::success();
+    }
+    result<void> reset_buffer_copy(std::span<const uint8_t> data) noexcept {
+        const auto buff_size = static_cast<int>(data.size());
+        auto buff = static_cast<uint8_t*>(av_malloc(buff_size));
+        LUMA_AV_ASSERT(buff);
+        std::copy(data.begin(), data.end(), buff);
+        LUMA_AV_OUTCOME_TRY(this->reset_buffer(buff, buff_size));
         return luma_av::outcome::success();
     }
     result<void> make_writable() {

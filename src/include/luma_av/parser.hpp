@@ -48,9 +48,9 @@ static result<ParserContext> make(CodecContext ctx) noexcept {
     LUMA_AV_OUTCOME_TRY(parser, InitParser(ctx.codec()->id));
     return ParserContext{parser.release(), std::move(ctx)};
 }
-
-std::pair<result<void>, std::span<const uint8_t>> ParseStep(packet& out_pkt, 
-                                        std::span<const uint8_t> in_buff) noexcept {
+// [data out, data remaining]
+std::pair<result<std::span<const uint8_t>>, std::span<const uint8_t>> ParseStep(
+                                                std::span<const uint8_t> in_buff) noexcept {
     uint8_t* data_out = nullptr;
     int size_out = 0;
     const auto ret = av_parser_parse2(parser_.get(), codec_ctx_.get(), 
@@ -62,11 +62,20 @@ std::pair<result<void>, std::span<const uint8_t>> ParseStep(packet& out_pkt,
     } else if (!(data_out) or (size_out == 0)) {
         return {errc::parser_hungry_uwu, in_buff.subspan(ret)};
     } else {
-        if (auto res = out_pkt.reset_buffer(data_out, size_out); 
+        return {std::span<uint8_t>{data_out, size_out}, in_buff.subspan(ret)};
+    }
+}
+std::pair<result<void>, std::span<const uint8_t>> ParseStep(packet& out_pkt, 
+                                        std::span<const uint8_t> in_buff) noexcept {
+    const auto [out_buff, remaining] = this->ParseStep(in_buff);
+    if(!out_buff) {
+        return {out_buff.error(), remaining};
+    }
+    if (auto res = out_pkt.reset_buffer_copy(out_buff.value()); 
             !res) {
-            return {res.error(), in_buff.subspan(ret)};
-        }
-        return {luma_av::outcome::success(), in_buff.subspan(ret)};
+            return {res.error(), remaining};
+    } else {
+        return {luma_av::outcome::success(), remaining};
     }
 }
 

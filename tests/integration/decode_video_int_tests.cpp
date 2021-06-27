@@ -44,9 +44,7 @@ static constexpr auto kFrameCompCount = int{10};
 #define INBUF_SIZE 4096
 
 static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
-    // cursed way to avoid destruction. leaks obv. but theres a bug with the cleanup currently :p
-    auto parser_ptr = new luma_av::Parser{luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value()};
-    auto& parser = *parser_ptr;
+    auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto decoder = luma_av::Decoder::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto filename    = kFileName;
     FILE* f = fopen(filename, "rb");

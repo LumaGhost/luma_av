@@ -19,13 +19,13 @@ class LumaAvConan(ConanFile):
         "gtest:build_gmock": False
     }
     generators = "cmake_find_package"
-    exports_sources = "src/*", "test/*", "CMakeLists.txt"
+    exports_sources = "src/*", "tests/*", "examples/*", "CMakeLists.txt"
 
     def requirements(self):
         self.requires("boost/1.75.0")
         self.requires("ffmpeg/4.2.1@bincrafters/stable")
-        self.requires("zlib/1.2.11@conan/stable")
-        self.requires("bzip2/1.0.8@conan/stable")
+        self.requires("zlib/1.2.11")
+        self.requires("bzip2/1.0.8")
         self.requires("gtest/1.8.1")
 
     def build(self):
@@ -34,10 +34,11 @@ class LumaAvConan(ConanFile):
         cmake.build()
 
     def package(self):
-        self.copy("*.hpp", dst="include", src="hello")
+        self.copy("*.hpp", dst="include", src="src/include")
         self.copy("*.so", dst="lib", keep_path=False)
         self.copy("*.a", dst="lib", keep_path=False)
 
     def package_info(self):
-        self.cpp_info.libs = ["luma_av"]
+        # self.cpp_info.libs = ["luma_av"]
+        self.info.header_only()
 

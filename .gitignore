@@ -32,4 +32,6 @@ build/*
 *.out
 *.app
 
+test_package/build/**
+
 /test_vids/

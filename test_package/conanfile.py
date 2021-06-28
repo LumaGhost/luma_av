@@ -5,12 +5,10 @@ from conans import ConanFile, CMake, tools
 
 class LumaavTestConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    generators = "cmake"
+    generators = "cmake_find_package"
 
     def build(self):
         cmake = CMake(self)
-        # Current dir is "test_package/build/<build_id>" and CMakeLists.txt is
-        # in "test_package"
         cmake.configure()
         cmake.build()
 
@@ -21,5 +19,4 @@ class LumaavTestConan(ConanFile):
 
     def test(self):
         if not tools.cross_building(self.settings):
-            os.chdir("bin")
-            self.run(".%sexample" % os.sep)
+            self.run(".%sluma_av_testpackage" % os.sep)

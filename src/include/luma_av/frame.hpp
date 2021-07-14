@@ -17,6 +17,9 @@ extern "C" {
 
 namespace luma_av {
 
+/**
+ unique ownership of a buffer allocated with avmalloc
+*/
 class Buffer {
     struct AVBuffDeleter {
         void operator()(uint8_t* av_ptr) {
@@ -71,6 +74,154 @@ class Buffer {
 
 };
 
+struct VideoParams {
+    int width_{};
+    int height_{};
+    AVPixelFormat format_{};
+
+    int width() const noexcept {
+        return width_;
+    }
+    auto& width(int w) noexcept {
+        width_ = w;
+        return *this;
+    }
+
+    int height() const noexcept {
+        return height_;
+    }
+    auto& height(int h) noexcept {
+        height_ = h;
+        return *this;
+    }
+
+    AVPixelFormat format() const noexcept {
+        return format_;
+    }
+    auto& format(AVPixelFormat fmt) noexcept {
+        format_ = fmt;
+        return *this;
+    }
+
+};
+
+struct AudioParams {
+    int nb_samples_{};
+    int channel_layout_{};
+
+    int nb_samples() const noexcept {
+        return nb_samples_;
+    }
+    auto& nb_samples(int nb) noexcept {
+        nb_samples_ = nb;
+        return *this;
+    }
+
+    int channel_layout() const noexcept {
+        return channel_layout_;
+    }
+    auto& channel_layout(int c) noexcept {
+        channel_layout_ = c;
+        return *this;
+    }
+};
+
+using FrameBufferParams = std::variant<VideoParams, AudioParams>;
+
+namespace detail {
+inline void ApplyParams(NotNull<AVFrame*> frame, VideoParams const& par) noexcept {
+    frame->width = par.width();
+    frame->height = par.height();
+    frame->format = par.format();
+}
+
+inline void ApplyParams(NotNull<AVFrame*> frame, AudioParams const& par) noexcept {
+    frame->nb_samples = par.nb_samples();
+    frame->channel_layout = par.channel_layout();
+}
+
+inline void ApplyParams(NotNull<AVFrame*> frame, FrameBufferParams const& par) noexcept {
+    std::visit([&](auto&& alt){return detail::ApplyParams(frame, alt);}, par);
+}
+
+/**
+    if the frame satisfies the buffer invariant return FrameBufferParams
+    representing the frames parameters
+    otherwise return none
+*/
+inline std::optional<FrameBufferParams> get_buffer_params(AVFrame const* frame) noexcept {
+    // a buffer is always a requirement
+    if (!frame->data) {
+        return std::nullopt;
+    }
+
+    // video frame
+    if (frame->linesize) {
+        // its gona be callers bug if width/height/format arent set but buffers are.
+        //  i cant rly safely work with those buffers without that info
+        LUMA_AV_ASSERT(frame->width != 0);
+        LUMA_AV_ASSERT(frame->height != 0);
+        LUMA_AV_ASSERT(frame->format != 0);
+        return VideoParams {.width_ = frame->width,
+                            .height_ = frame->height,
+                            .format_ = static_cast<AVPixelFormat>(frame->format)};
+    } else { // audio frame
+        LUMA_AV_ASSERT(frame->nb_samples != 0);
+        LUMA_AV_ASSERT(frame->channel_layout != 0);
+        return AudioParams{
+                .nb_samples_ = frame->nb_samples,
+                .channel_layout_ = frame->channel_layout};
+    }
+}
+
+inline bool holds_video_buffer(NotNull<AVFrame const*> frame) noexcept {
+    const auto buff_par = detail::get_buffer_params(frame);
+    if (!buff_par) {
+        return false;
+    } else {
+        return std::holds_alternative<VideoParams>(*buff_par);
+    }
+}
+
+inline bool holds_audio_buffer(NotNull<AVFrame const*> frame) noexcept {
+    const auto buff_par = detail::get_buffer_params(frame);
+    if (!buff_par) {
+        return false;
+    } else {
+        return std::holds_alternative<AudioParams>(*buff_par);
+    }
+}
+
+inline bool holds_any_valid_buffer(NotNull<AVFrame const*> frame) noexcept {
+    return detail::get_buffer_params(frame).has_value();
+}
+
+inline result<void> RefFrameImpl(NotNull<AVFrame*> dst, NotNull<AVFrame const*> src) noexcept {
+    const auto dst_buff = detail::get_buffer_params(dst);
+    const auto src_buff = detail::get_buffer_params(src);
+    LUMA_AV_ASSERT(src_buff);
+    if (dst_buff) {
+        av_frame_unref(dst);
+    }
+    LUMA_AV_OUTCOME_TRY_FF(av_frame_ref(dst, src));
+    detail::ApplyParams(dst, src_buff.value());
+    return luma_av::outcome::success();
+}
+/**
+https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga709e62bc2917ffd84c5c0f4e1dfc48f7
+*/
+inline void MoveFrameRefImpl(NotNull<AVFrame*> dst, NotNull<AVFrame*> src) noexcept {
+    const auto dst_buff = detail::get_buffer_params(dst);
+    const auto src_buff = detail::get_buffer_params(src);
+    LUMA_AV_ASSERT(src_buff);
+    if (dst_buff) {
+        av_frame_unref(dst);
+    }
+    av_frame_move_ref(dst, src);
+    detail::ApplyParams(dst, src_buff.value());
+}
+} // detail
+
 /**
 https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html
 */
@@ -85,7 +236,6 @@ class Frame {
 
     using unique_frame = std::unique_ptr<AVFrame, frame_deleter>;
 
-    // todo static in cpp
     static result<unique_frame> checked_frame_alloc() noexcept {
         auto* frame = av_frame_alloc();
         if (frame) {
@@ -98,96 +248,15 @@ class Frame {
     Frame(AVFrame* frame) noexcept : frame_{frame} {
         
     }
-    using This = Frame;
 
-    struct VideoParams {
-        int width{};
-        int height{};
-        AVPixelFormat format{};
-        int alignment{};
-    };
-
-    // would have used a free friend but fuck adl
-    int ApplyParams(VideoParams const& par) noexcept {
-        frame_->width = par.width;
-        frame_->height = par.height;
-        frame_->format = par.format;
-        return par.alignment;
-    }
-
-    struct AudioParams {
-        int nb_samples{};
-        int channel_layout{};
-        int alignment{};
-    };
-
-    int ApplyParams(AudioParams const& par) noexcept {
-        frame_->nb_samples = par.nb_samples;
-        frame_->channel_layout = par.channel_layout;
-        return par.alignment;
-    }
-
-    using FrameBufferParams = std::variant<VideoParams, AudioParams>;
-
-    /**
-        if the frame satisfies the object invariant return FrameBufferParams
-        representing the frames parameters
-        otherwise return none
-    */
-    static std::optional<FrameBufferParams> rip_buffer_params(AVFrame const* frame, int align) {
-        // a buffer is always a requirement
-        if (!frame->data) {
-            return std::nullopt;
-        }
-
-        // video frame
-        if (frame->linesize) {
-            // its gona be callers bug if width/height/format arent set but buffers are
-            //  i cant rly safely work with those buffers without that info
-            //  like thats kinda the point of this class. if u have buffers but no params
-            //  i legit cant use ur frame
-            LUMA_AV_ASSERT(frame->width != 0);
-            LUMA_AV_ASSERT(frame->height != 0);
-            LUMA_AV_ASSERT(frame->format != 0);
-            return VideoParams {.width = frame->width,
-                                .height= frame->height,
-                                .format= static_cast<AVPixelFormat>(frame->format),
-                                .alignment=align};
-        } else { // audio frame
-            LUMA_AV_ASSERT(frame->nb_samples != 0);
-            LUMA_AV_ASSERT(frame->channel_layout != 0);
-            return AudioParams{
-                    .nb_samples=frame->nb_samples,
-                    .channel_layout=frame->channel_layout,
-                    .alignment=align};
-        }
-    }
     /**
     current invariant (wip):
         - frame is never null (except after move. but use after move is not supported outside of assignment)
-        - if the frame has buffers allocated (i.e. data and linesize initialized) then the following is true
-            - buff_par_ contains either video or audio params
-            - the corresponding frame fields are set to the values defined by the video or audio params object
     */
     unique_frame frame_;
-    std::optional<FrameBufferParams> buff_par_;
 
-    
-    // just gona say ub if its not actually an image
-    // in practice i'll just terminate
-    VideoParams const& video_params() const noexcept {
-        return std::get<VideoParams>(buff_par_.value());
-    }
 
     public:
-    AVFrame* get() noexcept {
-        return frame_.get();
-    }
-    const AVFrame* get() const noexcept {
-        return frame_.get();
-    }
-
-    using ffmpeg_ptr_type = const AVFrame*;
     Frame(Frame const&) = delete;
     Frame& operator=(Frame const&) = delete;
     Frame(Frame&&) noexcept = default;
@@ -195,55 +264,40 @@ class Frame {
 
     // https://ffmpeg.org/doxygen/trunk/group__lavu__picture.html#ga5b6ead346a70342ae8a303c16d2b3629
     result<void> alloc_buffer(FrameBufferParams const& par) noexcept {
-        const auto align = std::visit([&](auto&& alt){return this->ApplyParams(alt);}, par);
+        detail::ApplyParams(frame_.get(), par);
         av_frame_unref(frame_.get());
-        LUMA_AV_OUTCOME_TRY_FF(av_frame_get_buffer(frame_.get(), align));
-        buff_par_ = par;
+        LUMA_AV_OUTCOME_TRY_FF(av_frame_get_buffer(frame_.get(), default_alignment));
         return luma_av::outcome::success();
     }
-    static result<This> make() noexcept {
+    static result<Frame> make() noexcept {
         LUMA_AV_OUTCOME_TRY(frame, checked_frame_alloc());
-        return This{frame.release()};
+        return Frame{frame.release()};
     }
 
     static constexpr auto default_alignment = int{32};
 
-    /**
-    for if u modify the frame using the underlying pointer
-    calling this function syncs the internal invariant with
-    the AVFrame itself
-    */
-    void update_buffer_params(int align = default_alignment) {
-        buff_par_ = rip_buffer_params(frame_.get(), align);
-    }
-
-
-    // not sure i can actually do this without violating my invariant
-    // how do i check for buffers etc?
-    static This FromOwner(AVFrame* owned_frame) noexcept {
-        auto frame = This{owned_frame};
-        frame.buff_par_ = rip_buffer_params(frame.get(), default_alignment);
+    static Frame FromOwner(AVFrame* owned_frame) noexcept {
+        auto frame = Frame{owned_frame};
         return std::move(frame);
     }
 
     struct shallow_copy_t{};
     static constexpr auto shallow_copy = shallow_copy_t{};
 
-    // same here. need a way to know if we need to initialize the buffer params
+    using ffmpeg_ptr_type = AVFrame const*;
+
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
-    static result<This> make(const NonOwning<Frame> in_frame, shallow_copy_t,
-                             int alignment = default_alignment) noexcept {
+    static result<Frame> make(const NonOwning<Frame> in_frame, shallow_copy_t) noexcept {
         auto* new_frame = av_frame_clone(in_frame.ptr());
         if (!new_frame) {
             return luma_av::outcome::failure(errc::alloc_failure);
         }
-        auto out_frame = This{new_frame};
-        out_frame.buff_par_ = rip_buffer_params(out_frame.get(), alignment);
+        auto out_frame = Frame{new_frame};
         return std::move(out_frame);
     }
 
-    static result<This> make(FrameBufferParams const& par) noexcept {
-        LUMA_AV_OUTCOME_TRY(frame, This::make());
+    static result<Frame> make(FrameBufferParams const& par) noexcept {
+        LUMA_AV_OUTCOME_TRY(frame, Frame::make());
         LUMA_AV_OUTCOME_TRY(frame.alloc_buffer(par));
         return std::move(frame);
     }
@@ -251,9 +305,9 @@ class Frame {
     // https://ffmpeg.org/doxygen/trunk/group__lavu__picture.html#ga5b6ead346a70342ae8a303c16d2b3629
     // not sure of the size type yet
     result<std::size_t> ImageBufferSize() const noexcept {
-        auto const& video_params = this->video_params();
-        auto buff_size =  av_image_get_buffer_size(video_params.format, 
-                                video_params.width, video_params.height, video_params.alignment);
+        const auto video_params = this->video_params();
+        auto buff_size =  av_image_get_buffer_size(video_params.format(), 
+                                video_params.width(), video_params.height(), default_alignment);
         if (buff_size < 0) {
             return luma_av::errc{buff_size};
         }
@@ -263,106 +317,96 @@ class Frame {
     result<Buffer> CopyToImageBuffer() const noexcept {
         LUMA_AV_OUTCOME_TRY(size, ImageBufferSize());
         LUMA_AV_OUTCOME_TRY(buff, Buffer::make(size));
-        auto const& video_params = this->video_params();
+        const auto video_params = this->video_params();
         LUMA_AV_OUTCOME_TRY_FF(av_image_copy_to_buffer(
             buff.data(), buff.ssize(), frame_->data, frame_->linesize,
-            video_params.format, video_params.width, video_params.height,
-            video_params.alignment
+            video_params.format(), video_params.width(), video_params.height(),
+            default_alignment
         ));
         return std::move(buff);
     }
 
-    private:
-    friend void Unref(Frame& dst) {
-        av_frame_unref(dst.frame_.get());
-        dst.buff_par_ = std::nullopt;
-    }
-    friend result<void> RefImpl(Frame& dst, Frame const& src) {
-        assert(src.buff_par_);
-        if (dst.buff_par_) {
-            Unref(dst);
-        }
-        LUMA_AV_OUTCOME_TRY_FF(av_frame_ref(dst.frame_.get(), src.frame_.get()));
-        dst.buff_par_ = src.buff_par_;
-        return luma_av::outcome::success();
-    }
-    public:
-
+    /**
+      av_frame_ref with memory safety checks
+     */
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga88b0ecbc4eb3453eef3fbefa3bddeb7c
     result<void> RefTo(Frame& dst) const noexcept {
-        return RefImpl(dst, *this);
+        return detail::RefFrameImpl(dst.get(), this->get());
     }
-
     result<void> RefFrom(Frame const& src) noexcept {
-        return RefImpl(*this, src);
+        return detail::RefFrameImpl(this->get(), src.get());
     }
 
     /**
-    https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga709e62bc2917ffd84c5c0f4e1dfc48f7
-    */
-    private:
-    friend void MoveReImpl(Frame& dst, Frame& src) noexcept {
-        assert(src.buff_par_);
-        if (dst.buff_par_) {
-            Unref(dst);
-        }
-        av_frame_move_ref(dst.frame_.get(), src.frame_.get());
-        dst.buff_par_ = src.buff_par_;
-    }
-    public:
+      av_frame_move_ref with memory safety checks
+     */
     void MoveRefTo(Frame& dst) noexcept {
-        MoveReImpl(dst, *this);
+        detail::MoveFrameRefImpl(dst.get(), this->get());
     }
-
     void MoveRefFrom(Frame& src) noexcept {
-        MoveReImpl(*this, src);
+        detail::MoveFrameRefImpl(this->get(), src.get());
     }
 
     /**
-    currently thinking its a mistake to call these on a frame with no buffers
-
-    also yea why isnt the ffmpeg api const here?
+    currently thinking its a mistake to call these on a frame with no buffers?
+     so we check for a frame buffer before calling av_frame_is_writable
+    also not sure why the ffmpeg api const here?
     */
     bool IsWritable() noexcept {
-        assert(buff_par_);
+        LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
         auto res = av_frame_is_writable(frame_.get());
         return res > 0;
     }
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#gadd5417c06f5a6b419b0dbd8f0ff363fd
     result<void> MakeWritable() noexcept {
-        assert(buff_par_);
+        LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
         LUMA_AV_OUTCOME_TRY_FF(av_frame_make_writable(frame_.get()));
         return luma_av::outcome::success();
     }
 
-    uint8_t** data() noexcept {
-        assert(buff_par_);
+    NotNull<uint8_t**> data() noexcept {
+        LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
+        return frame_.get()->data;
+    }
+    NotNull<const uint8_t* const*> data() const noexcept {
+        LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
         return frame_.get()->data;
     }
 
-    const uint8_t* const* data() const noexcept {
-        assert(buff_par_);
-        return frame_.get()->data;
-    }
-
-    int* linesize() noexcept {
-        assert(buff_par_);
+    // only valid on video frames (i think)
+    NotNull<int*> linesize() noexcept {
+        LUMA_AV_ASSERT(holds_video_buffer(frame_.get()));
         return frame_.get()->linesize;
     }
-
-    const int* linesize() const noexcept {
-        assert(buff_par_);
+    NotNull<const int*> linesize() const noexcept {
+        LUMA_AV_ASSERT(holds_video_buffer(frame_.get()));
         return frame_.get()->linesize;
     }
 
     int width() const noexcept {
-        return video_params().width;
+        return this->video_params().width();
     }
     int height() const noexcept {
-        return video_params().height;
+        return this->video_params().height();
     }
     AVPixelFormat pix_fmt() const noexcept {
-        return video_params().format;
+        return this->video_params().format();
+    }
+
+    // dont depend on specific behavior if called on an audio frame
+    VideoParams video_params() const noexcept {
+        return std::get<VideoParams>(detail::get_buffer_params(frame_.get()).value());
+    }
+    // dont depend on specific behavior if called on a video frame
+    AudioParams audio_params() const noexcept {
+        return std::get<AudioParams>(detail::get_buffer_params(frame_.get()).value());
+    }
+
+    AVFrame* get() noexcept {
+        return frame_.get();
+    }
+    const AVFrame* get() const noexcept {
+        return frame_.get();
     }
 
 };

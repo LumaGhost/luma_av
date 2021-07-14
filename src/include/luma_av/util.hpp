@@ -115,9 +115,9 @@ template <class T>
 class NonOwning {
     public:
     using pointer = std::decay_t<typename T::ffmpeg_ptr_type>;
-    using const_pointer = const pointer;
+    using const_pointer = std::add_const_t<pointer>;
     /*implicit*/ NonOwning(T const& t) : ptr_{t.get()} {
-        static_assert(detail::FFmpegWrapper<T>);
+        // static_assert(detail::FFmpegWrapper<T>);
     }
     /*implicit*/ NonOwning(const_pointer ptr) : ptr_{ptr} {
         LUMA_AV_ASSERT(ptr_);
@@ -126,7 +126,7 @@ class NonOwning {
         return ptr_;
     }
     private:
-    pointer ptr_;
+    const_pointer ptr_;
 };
 
 enum class Width : int {};

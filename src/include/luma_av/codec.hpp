@@ -398,7 +398,6 @@ class Decoder {
     result<void> recieve_frame() noexcept {
         auto ec = avcodec_receive_frame(ctx_.get(), decoder_frame_.get());
         if (!ec) {
-            decoder_frame_.update_buffer_params();
             return luma_av::outcome::success();
         } else {
             return detail::ffmpeg_code_to_result(ec);

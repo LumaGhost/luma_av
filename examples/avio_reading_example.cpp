@@ -1,6 +1,5 @@
-
-
 // example based on https://ffmpeg.org/doxygen/trunk/avio_reading_8c-example.html
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -18,14 +17,6 @@ extern "C" {
 static auto kFileName = "./test_vids/fortnite_uwu.mp4";
 
 
-/**
- * @file
- * libavformat AVIOContext API example.
- *
- * Make libavformat demuxer access media content through a custom
- * AVIOContext read callback.
- * @example avio_reading.c
- */
 struct BufferData {
     uint8_t *ptr;
     size_t size; ///< size left in the buffer

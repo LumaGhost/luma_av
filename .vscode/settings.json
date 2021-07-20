@@ -1,4 +1,0 @@
-{
-    "clangd.path":"/usr/bin/clangd-7",
-    "clangd.arguments": ["-compile-commands-dir=/workspaces/luma_av"]
-}

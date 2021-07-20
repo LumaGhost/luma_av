@@ -123,7 +123,7 @@ std::pair<result<void>, std::span<const uint8_t>> ParseAll(Parser& parser,
     while (true) {
         const auto [pkt, buff] = parser.ParseStep(parse_me_uwu);
         if (pkt) {
-            *output = Packet::make(pkt.value().get(), Packet::shallow_copy);
+            *output = Packet::make(pkt.value().get());
         } else if (pkt.error() == errc::parser_hungry_uwu) {
             parse_me_uwu = buff;
         } else {

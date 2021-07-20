@@ -13,6 +13,23 @@ extern "C" {
 
 namespace luma_av {
 
+namespace detail {
+
+inline void packet_buffer_unref(NotNull<AVPacket*> pkt) noexcept {
+    av_buffer_unref(&pkt->buf);
+    pkt->data = nullptr;
+    pkt->size = 0;
+}
+
+}
+
+/**
+ wrapper for AVPacket
+ this class maintains the reference counting semantics available with AVPacket
+ each Packet contains unique ownership of an AVPacket. but the AVPacket itself can potentially
+ own or share ownership of a buffer.
+ move only, but reference counted copies can be created explicity using the `make` methods
+ */
 class Packet {
 
     struct packet_deleter {
@@ -22,10 +39,9 @@ class Packet {
             //  one we should use instead?
         }
     };
-    using This = Packet;
     using unique_pkt = std::unique_ptr<AVPacket, packet_deleter>;
 
-/**
+    /**
     * allocaate a new packet with avpacket alloc, call avpacket init on the resulting packet
     *  avpacket init performs additional initialization beyond what av packet alloc does
     *  https://ffmpeg.org/doxygen/3.2/avpacket_8c_source.html#l00033
@@ -48,43 +64,35 @@ class Packet {
 
     public:
 
+    /**
+    create a new avpacket and initialize to default values
+    does not intitialze the packets buffer.
+    */
     static result<Packet> make() noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, alloc_packet());
         return Packet{pkt.release()};
     }
 
+    /**
+    allocate a packet and initialize with a new buffer. specifying the size of the buffer
+    */
     static result<Packet> make(int size) noexcept {
-        LUMA_AV_OUTCOME_TRY(pkt, This::make());
-        LUMA_AV_OUTCOME_TRY_FF(av_new_packet(pkt.pkt_.get(), size));
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt.new_buffer(size));
         // we're actually calling the result ctor here so we need to move
         //  otherwise it tries to find copy (and fails)
         return std::move(pkt);
     }
 
-    /**
-    not sure how the invariant will work out yet but i rly want to support shalow copies. thats a huge
-    optimization i feel like itd be untrue to the lib to leave it off the table. that said
-    i def want an api thats clear abt shalow or deep copy and allows the user to know explicitly if 
-    theyre creating/having a writable packet or not. 
-    i wanted to keep the names uniformly "make" so at that point a tag type helps disambiguate
-    */
-    struct shallow_copy_t {};
-    static constexpr auto shallow_copy = shallow_copy_t{}; 
-    static result<Packet> make(const AVPacket* in_pkt, shallow_copy_t) noexcept {
+    static result<Packet> make(const AVPacket* in_pkt) noexcept {
         LUMA_AV_ASSERT(in_pkt);
-        LUMA_AV_OUTCOME_TRY(pkt, This::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         LUMA_AV_OUTCOME_TRY_FF(av_packet_copy_props(pkt.pkt_.get(), in_pkt));
         LUMA_AV_OUTCOME_TRY_FF(av_packet_ref(pkt.pkt_.get(), in_pkt));
         return std::move(pkt);
     }
-    static result<Packet> make(const Packet& in_pkt, shallow_copy_t) noexcept {
-        return This::make(in_pkt.get(), shallow_copy);
-    }
-
-    static result<Packet> make(const AVPacket* in_pkt) noexcept {
-        LUMA_AV_OUTCOME_TRY(pkt, This::make(in_pkt, shallow_copy));
-        LUMA_AV_OUTCOME_TRY_FF(av_buffer_make_writable(&pkt.pkt_->buf));
-        return std::move(pkt);
+    static result<Packet> make(const Packet& in_pkt) noexcept {
+        return Packet::make(in_pkt.get());
     }
 
     Packet(const Packet&) = delete;
@@ -109,25 +117,61 @@ class Packet {
         return pkt_.get();
     }
 
+    /**
+        view of the packets internal buffer
+    */
     std::span<const uint8_t> span() const noexcept {
-        LUMA_AV_ASSERT(pkt_.get()->data);
-        LUMA_AV_ASSERT(pkt_.get()->size > 0);
+        LUMA_AV_ASSERT(this->has_buffer());
         return {pkt_.get()->data, pkt_.get()->size};
     }
-
     std::span<uint8_t> span() noexcept {
-        LUMA_AV_ASSERT(pkt_.get()->data);
-        LUMA_AV_ASSERT(pkt_.get()->size > 0);
+        LUMA_AV_ASSERT(this->has_buffer());
+        LUMA_AV_ASSERT(this->is_writable());
         return {pkt_.get()->data, pkt_.get()->size};
     }
 
+    /**
+     returns true if the packet has a buffer attached. does not 
+     ensure unique ownership of the buffer
+    */
+    bool has_buffer() const noexcept {
+        if (!pkt_->buf) {
+            return false;
+        } else {
+            LUMA_AV_ASSERT(pkt_->data);
+            LUMA_AV_ASSERT(pkt_->size > 0);
+            return true;
+        }
+    }
+
+    /**
+    replace the current buffer with a newly allocated buffer of a specificed size
+    */
+    result<void> new_buffer(int size) noexcept {
+        if (this->has_buffer()) {
+            detail::packet_buffer_unref(pkt_.get());
+        }
+        LUMA_AV_OUTCOME_TRY_FF(av_new_packet(pkt_.get(), size));
+        return luma_av::outcome::success();
+    }
+
+    /**
+        replace the internal buffer with a new buffer. ownership is transfered from
+        the caller to the packet. 
+    */
     result<void> reset_buffer(luma_av::Owner<uint8_t*> data, int size) noexcept {
         // either ref coutned with on ref, or no buffer at all
         // otherwise i think this function leaks
-        LUMA_AV_ASSERT(is_writable() || (!pkt_->buf && !pkt_->data));
+        if (this->has_buffer()) {
+            detail::packet_buffer_unref(pkt_.get());
+        }
         LUMA_AV_OUTCOME_TRY_FF(av_packet_from_data(pkt_.get(), data, size));
         return luma_av::outcome::success();
     }
+    /**
+        replace the internal buffer with a new buffer. rather than transfering ownership,
+        a new buffer is allocated and the input data is copied into the new buffer
+    */
     result<void> reset_buffer_copy(std::span<const uint8_t> data) noexcept {
         const auto buff_size = static_cast<int>(data.size());
         auto buff = static_cast<uint8_t*>(av_malloc(buff_size));
@@ -136,16 +180,25 @@ class Packet {
         LUMA_AV_OUTCOME_TRY(this->reset_buffer(buff, buff_size));
         return luma_av::outcome::success();
     }
+
+    /**
+      if the buffer has more than one owner, 
+      create a new buffer and copy the contents of the current buffer.
+      the resulting buffer is writable i.e. there is only one owner
+     */
     result<void> make_writable() {
-        LUMA_AV_ASSERT(pkt_->buf);
+        LUMA_AV_ASSERT(this->has_buffer());
         LUMA_AV_OUTCOME_TRY_FF(av_buffer_make_writable(&pkt_->buf));
         return luma_av::outcome::success();
     }
 
+    /**
+     whether or not the frame is "writable" i.e. the packet buffer has only one owner
+    */
     bool is_writable() const noexcept {
         // non ref counted frames are never assumed writable
         // https://www.ffmpeg.org/doxygen/trunk/frame_8c_source.html#l00595
-        if (!pkt_->buf) {
+        if (!this->has_buffer()) {
             return false;
         }
         return av_buffer_is_writable(pkt_->buf) == 1;

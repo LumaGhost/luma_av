@@ -249,7 +249,7 @@ TEST(DecodeVideoIntegration, ParserParseOne) {
             v | luma_av::views::parse_packets(parser);
         std::vector<luma_av::Packet> packets;
         std::ranges::transform(pipe, std::back_inserter(packets), [](auto&& pkt_ref){
-            return luma_av::Packet::make(pkt_ref.value().get(), luma_av::Packet::shallow_copy).value();
+            return luma_av::Packet::make(pkt_ref.value().get()).value();
         });
         if (!packets.empty()) {
             break;
@@ -288,7 +288,7 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
         auto pipe = 
             v | luma_av::views::parse_packets(parser);
         std::ranges::transform(pipe, std::back_inserter(parsed), [](auto&& pkt_ref){
-                return luma_av::Packet::make(pkt_ref.value().get(), luma_av::Packet::shallow_copy).value();
+                return luma_av::Packet::make(pkt_ref.value().get()).value();
         });
     }
     ASSERT_FALSE(parsed.empty());

@@ -75,7 +75,7 @@ TEST(codec, transcode_ranges) {
 
     for (auto const& pkt : pkts | decode_view(dec) | encode_view(enc)) {
         if (pkt) {
-            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value()).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else {
@@ -112,7 +112,7 @@ TEST(codec, read_transcode_ranges) {
 
     for (auto const& pkt : read_input(reader) | decode(dec) | encode(enc)) {
         if (pkt) {
-            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value()).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else if (pkt.error().value() == AVERROR_EOF) {
@@ -176,7 +176,7 @@ TEST(codec, read_transcode_ranges2) {
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get()));
             } else if (pkt.error().value() == AVERROR_EOF) {
                 packets.emplace(luma_av::errc::end);
                 return;
@@ -208,7 +208,7 @@ TEST(codec, read_transcode_ranges2) {
         std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get()).value());
             } else if (pkt.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else if (pkt.error() == luma_av::errc::end) {
@@ -236,7 +236,7 @@ TEST(codec, read_transcode_scale_ranges) {
 
     for (auto const& pkt : read_input(reader) | decode(dec) | scale(sws) | encode(enc)) {
         if (pkt) {
-            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value()).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else if (pkt.error().value() == AVERROR_EOF) {
@@ -317,7 +317,7 @@ TEST(codec, NewRangesUwU) {
 
     auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc) 
         | std::views::transform([](auto const& res){
-            return Packet::make(res.value(), Packet::shallow_copy).value();
+            return Packet::make(res.value()).value();
     });
 
     std::vector<Packet> out_pkts;
@@ -343,7 +343,7 @@ TEST(codec, asyncTranscodeNewRanges) {
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get()));
             } else {
                 packets.emplace(pkt.error());
                 return;
@@ -370,7 +370,7 @@ TEST(codec, asyncTranscodeNewRanges) {
         std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get()).value());
             } else {
                 return luma_av::outcome::failure(pkt.error());
             }
@@ -397,7 +397,7 @@ TEST(codec, asyncTranscodeNewRanges2) {
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get()));
             } else {
                 packets.emplace(pkt.error());
                 return;
@@ -412,7 +412,7 @@ TEST(codec, asyncTranscodeNewRanges2) {
         std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(packets) | decode(dec) | scale(sws) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get()).value());
             } else {
                 return luma_av::outcome::failure(pkt.error());
             }
@@ -437,7 +437,7 @@ TEST(codec, ParseyUwU) {
 
     auto pipe = data | parse_packets(parser) | decode_drain(dec) | scale(sws) | encode_drain(enc) 
         | std::views::transform([](auto const& res){
-            return Packet::make(res.value(), Packet::shallow_copy).value();
+            return Packet::make(res.value()).value();
     });
 
     std::vector<Packet> out_pkts;

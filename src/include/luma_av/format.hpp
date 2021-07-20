@@ -453,7 +453,7 @@ class Reader {
         return reader_packet_;
     }
     result<Packet> ref_packet() noexcept {
-        return Packet::make(reader_packet_, Packet::shallow_copy);
+        return Packet::make(reader_packet_);
     }
     private:
     Reader(format_context fctx, Packet reader_packet) 

@@ -310,7 +310,7 @@ class Encoder {
     }
     // if they do want their own packet
     result<Packet> ref_packet() noexcept {
-        return Packet::make(encoder_packet_.get(), Packet::shallow_copy);
+        return Packet::make(encoder_packet_.get());
     }
     private:
     CodecContext ctx_;

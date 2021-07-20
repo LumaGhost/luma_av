@@ -348,12 +348,14 @@ class Frame {
     }
 
     /**
-    currently thinking its a mistake to call these on a frame with no buffers?
-     so we check for a frame buffer before calling av_frame_is_writable
-    also not sure why the ffmpeg api const here?
+        checks that the frame is writable i.e. the internal buffer is 
+        allocated and has only one owner
     */
     bool IsWritable() noexcept {
-        LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
+        if (!detail::holds_any_valid_buffer(frame_.get())) {
+            return false;
+        }
+        // not sure why the ffmpeg api isnt const here?
         auto res = av_frame_is_writable(frame_.get());
         return res > 0;
     }
@@ -366,6 +368,7 @@ class Frame {
 
     NotNull<uint8_t**> data() noexcept {
         LUMA_AV_ASSERT(holds_any_valid_buffer(frame_.get()));
+        LUMA_AV_ASSERT(this->IsWritable());
         return frame_.get()->data;
     }
     NotNull<const uint8_t* const*> data() const noexcept {

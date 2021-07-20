@@ -402,12 +402,12 @@ class format_context {
         return detail::ffmpeg_code_to_result(av_read_frame(fctx_.get(), pkt));
     }
     // if the user wants to manage the packet themselves
-    result<void> read_frame(packet& pkt) noexcept {
+    result<void> read_frame(Packet& pkt) noexcept {
         return this->read_frame(pkt.get());
     }
     // if the user always wants a copy of the packet
-    result<packet> read_frame() noexcept {
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+    result<Packet> read_frame() noexcept {
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         LUMA_AV_OUTCOME_TRY(this->read_frame(pkt));
         return std::move(pkt);
     }
@@ -426,19 +426,19 @@ gives us a packet workspace. helps with range functionality
 class Reader {
     public:
     static result<Reader> make(format_context fctx) noexcept {
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         return Reader{std::move(fctx), std::move(pkt)};
     }
     static result<Reader> make(const cstr_view url) noexcept {
         LUMA_AV_OUTCOME_TRY(fctx, format_context::open_input(url));
         LUMA_AV_OUTCOME_TRY(fctx.FindStreamInfo());
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         return Reader{std::move(fctx), std::move(pkt)};
     }
     result<void> ReadFrameInPlace() noexcept {
         return fctx_.read_frame(reader_packet_);
     }
-    result<packet> ReadFrame() noexcept {
+    result<Packet> ReadFrame() noexcept {
         LUMA_AV_OUTCOME_TRY(ReadFrameInPlace());
         return ref_packet();
     }
@@ -449,16 +449,16 @@ class Reader {
     we can provide any customization for managing the packet in the constructor
     */
 
-    packet& view_packet() noexcept {
+    Packet& view_packet() noexcept {
         return reader_packet_;
     }
-    result<packet> ref_packet() noexcept {
-        return packet::make(reader_packet_, packet::shallow_copy);
+    result<Packet> ref_packet() noexcept {
+        return Packet::make(reader_packet_, Packet::shallow_copy);
     }
     private:
-    Reader(format_context fctx, packet reader_packet) 
+    Reader(format_context fctx, Packet reader_packet) 
         : reader_packet_{std::move(reader_packet)}, fctx_{std::move(fctx)} {}
-    packet reader_packet_;
+    Packet reader_packet_;
     format_context fctx_;
 
 };
@@ -519,7 +519,7 @@ input_reader_view(R&&, Reader&) -> input_reader_view<std::ranges::views::all_t<R
 template <std::ranges::view R>
 template <bool is_const>
 class input_reader_view<R>::iterator {
-    using output_type = result<std::reference_wrapper<const packet>>;
+    using output_type = result<std::reference_wrapper<const Packet>>;
     using parent_t = detail::MaybeConst_t<is_const, input_reader_view<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;

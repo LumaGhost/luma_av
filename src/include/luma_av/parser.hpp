@@ -65,7 +65,7 @@ std::pair<result<std::span<const uint8_t>>, std::span<const uint8_t>> ParseStep(
         return {std::span<uint8_t>{data_out, size_out}, in_buff.subspan(ret)};
     }
 }
-std::pair<result<void>, std::span<const uint8_t>> ParseStep(packet& out_pkt, 
+std::pair<result<void>, std::span<const uint8_t>> ParseStep(Packet& out_pkt, 
                                         std::span<const uint8_t> in_buff) noexcept {
     const auto [out_buff, remaining] = this->ParseStep(in_buff);
     if(!out_buff) {
@@ -84,8 +84,8 @@ std::pair<result<void>, std::span<const uint8_t>> ParseStep(packet& out_pkt,
 
 class Parser {
     ParserContext parser_;
-    packet out_pkt_;
-    Parser(ParserContext parser, packet pkt)
+    Packet out_pkt_;
+    Parser(ParserContext parser, Packet pkt)
         : parser_{std::move(parser)}, out_pkt_{std::move(pkt)} {
     }
     public:
@@ -96,16 +96,16 @@ class Parser {
         LUMA_AV_OUTCOME_TRY(codec, find_decoder(id));
         LUMA_AV_OUTCOME_TRY(codec_ctx, CodecContext::make(codec));
         LUMA_AV_OUTCOME_TRY(parser_ctx, ParserContext::make(std::move(codec_ctx)));
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         return Parser{std::move(parser_ctx), std::move(pkt)};
     }
 
     static result<Parser> make(ParserContext parser_ctx) noexcept {
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         return Parser{std::move(parser_ctx), std::move(pkt)};
     }
 
-    std::pair<result<std::reference_wrapper<const packet>>, 
+    std::pair<result<std::reference_wrapper<const Packet>>, 
         std::span<const uint8_t>> ParseStep(std::span<const uint8_t> in_buff) noexcept { 
         const auto [res, buff] = parser_.ParseStep(out_pkt_, in_buff);
         if (res) {
@@ -123,7 +123,7 @@ std::pair<result<void>, std::span<const uint8_t>> ParseAll(Parser& parser,
     while (true) {
         const auto [pkt, buff] = parser.ParseStep(parse_me_uwu);
         if (pkt) {
-            *output = packet::make(pkt.value().get(), packet::shallow_copy);
+            *output = Packet::make(pkt.value().get(), Packet::shallow_copy);
         } else if (pkt.error() == errc::parser_hungry_uwu) {
             parse_me_uwu = buff;
         } else {
@@ -193,7 +193,7 @@ parser_view_impl(R&&, Parser&) -> parser_view_impl<std::ranges::views::all_t<R>>
 template <std::ranges::view R>
 template <bool is_const>
 class parser_view_impl<R>::iterator {
-    using output_type = result<std::reference_wrapper<const packet>>;
+    using output_type = result<std::reference_wrapper<const Packet>>;
     using parent_t = detail::MaybeConst_t<is_const, parser_view_impl<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;

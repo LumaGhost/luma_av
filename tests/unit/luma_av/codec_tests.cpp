@@ -33,7 +33,7 @@ TEST(codec, encode_vector) {
 
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> packets;
+    std::vector<Packet> packets;
     packets.reserve(5);
 
     Encode(enc, frames, std::back_inserter(packets)).value();
@@ -45,7 +45,7 @@ TEST(codec, encode_array) {
 
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> packets;
+    std::vector<Packet> packets;
     packets.reserve(5);
 
     Encode(enc, frames, std::back_inserter(packets)).value();
@@ -57,7 +57,7 @@ TEST(codec, encode_single) {
 
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> packets;
+    std::vector<Packet> packets;
     packets.reserve(5);
 
     Encode(enc, std::views::single(frame), std::back_inserter(packets)).value();
@@ -70,12 +70,12 @@ TEST(codec, transcode_ranges) {
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
     for (auto const& pkt : pkts | decode_view(dec) | encode_view(enc)) {
         if (pkt) {
-            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else {
@@ -94,7 +94,7 @@ TEST(codec, transcode_functions) {
     out_frames.reserve(5);
     Decode(dec, pkts, std::back_inserter(out_frames)).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
     Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
 }
@@ -107,12 +107,12 @@ TEST(codec, read_transcode_ranges) {
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
     for (auto const& pkt : read_input(reader) | decode(dec) | encode(enc)) {
         if (pkt) {
-            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else if (pkt.error().value() == AVERROR_EOF) {
@@ -129,7 +129,7 @@ TEST(codec, read_transcode_functions) {
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
 
-    std::vector<packet> pkts;
+    std::vector<Packet> pkts;
     while (true) {
         if (auto pkt = reader.ReadFrame()) {
             pkts.push_back(std::move(pkt).value());
@@ -144,7 +144,7 @@ TEST(codec, read_transcode_functions) {
     out_frames.reserve(5);
     Decode(dec, pkts, std::back_inserter(out_frames)).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
     Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
 }
@@ -167,16 +167,16 @@ TEST(codec, read_transcode_ranges2) {
     auto dec = Decoder::make("h264"_cv).value();
     auto enc = Encoder::make("h264"_cv).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
-    std::queue<result<packet>> packets;
+    std::queue<result<Packet>> packets;
     std::queue<result<Frame>> frames;
 
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
             } else if (pkt.error().value() == AVERROR_EOF) {
                 packets.emplace(luma_av::errc::end);
                 return;
@@ -200,15 +200,15 @@ TEST(codec, read_transcode_ranges2) {
         }
     });
 
-    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+    auto enc_fut = std::async([&]() -> result<std::vector<Packet>> {
         auto f = luma_av::detail::finally([&](){
             read_fut.get();
             dec_fut.get();
         });
-        std::vector<packet> out_packets;
+        std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
             } else if (pkt.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else if (pkt.error() == luma_av::errc::end) {
@@ -231,12 +231,12 @@ TEST(codec, read_transcode_scale_ranges) {
     auto enc = Encoder::make("h264"_cv).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
     for (auto const& pkt : read_input(reader) | decode(dec) | scale(sws) | encode(enc)) {
         if (pkt) {
-            out_pkts.push_back(packet::make(pkt.value(), packet::shallow_copy).value());
+            out_pkts.push_back(Packet::make(pkt.value(), Packet::shallow_copy).value());
         } else if (pkt.error().value() == AVERROR(EAGAIN)) {
             continue;
         } else if (pkt.error().value() == AVERROR_EOF) {
@@ -250,7 +250,7 @@ TEST(codec, read_transcode_scale_ranges) {
 TEST(codec, decode_view_messsaround) {
     auto dec = Decoder::make("h264"_cv).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     auto dv = decode_view(std::views::all(out_pkts), dec);
     auto it = dv.begin();
     ++it;
@@ -317,10 +317,10 @@ TEST(codec, NewRangesUwU) {
 
     auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc) 
         | std::views::transform([](auto const& res){
-            return packet::make(res.value(), packet::shallow_copy).value();
+            return Packet::make(res.value(), Packet::shallow_copy).value();
     });
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     for (auto&& pkt : pipe) {
         out_pkts.push_back(std::move(pkt));
     }
@@ -334,16 +334,16 @@ TEST(codec, asyncTranscodeNewRanges) {
     auto enc = Encoder::make("h264"_cv).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
-    std::queue<result<packet>> packets;
+    std::queue<result<Packet>> packets;
     std::queue<result<Frame>> frames;
 
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
             } else {
                 packets.emplace(pkt.error());
                 return;
@@ -362,15 +362,15 @@ TEST(codec, asyncTranscodeNewRanges) {
         }
     });
 
-    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+    auto enc_fut = std::async([&]() -> result<std::vector<Packet>> {
         auto f = luma_av::detail::finally([&](){
             read_fut.get();
             dec_fut.get();
         });
-        std::vector<packet> out_packets;
+        std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(frames) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
             } else {
                 return luma_av::outcome::failure(pkt.error());
             }
@@ -389,15 +389,15 @@ TEST(codec, asyncTranscodeNewRanges2) {
     auto enc = Encoder::make("h264"_cv).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     out_pkts.reserve(5);
 
-    std::queue<result<packet>> packets;
+    std::queue<result<Packet>> packets;
 
     auto read_fut = std::async([&]() -> void {
         for (auto const& pkt : read_input(reader)) {
             if (pkt) {
-                packets.emplace(packet::make(pkt.value().get(), packet::shallow_copy));
+                packets.emplace(Packet::make(pkt.value().get(), Packet::shallow_copy));
             } else {
                 packets.emplace(pkt.error());
                 return;
@@ -405,14 +405,14 @@ TEST(codec, asyncTranscodeNewRanges2) {
         }
     });
 
-    auto enc_fut = std::async([&]() -> result<std::vector<packet>> {
+    auto enc_fut = std::async([&]() -> result<std::vector<Packet>> {
         auto f = luma_av::detail::finally([&](){
             read_fut.get();
         });
-        std::vector<packet> out_packets;
+        std::vector<Packet> out_packets;
         for (const auto pkt : queue_pop_view(packets) | decode(dec) | scale(sws) | encode(enc)) {
             if (pkt) {
-                out_packets.push_back(packet::make(pkt.value().get(), packet::shallow_copy).value());
+                out_packets.push_back(Packet::make(pkt.value().get(), Packet::shallow_copy).value());
             } else {
                 return luma_av::outcome::failure(pkt.error());
             }
@@ -437,10 +437,10 @@ TEST(codec, ParseyUwU) {
 
     auto pipe = data | parse_packets(parser) | decode_drain(dec) | scale(sws) | encode_drain(enc) 
         | std::views::transform([](auto const& res){
-            return packet::make(res.value(), packet::shallow_copy).value();
+            return Packet::make(res.value(), Packet::shallow_copy).value();
     });
 
-    std::vector<packet> out_pkts;
+    std::vector<Packet> out_pkts;
     for (auto&& pkt : pipe) {
         out_pkts.push_back(std::move(pkt));
     }

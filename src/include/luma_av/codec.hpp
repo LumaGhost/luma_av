@@ -211,7 +211,7 @@ class CodecContext {
     }
 
     // convenience overload for our own packet
-    result<void> send_packet(const packet& p) noexcept {
+    result<void> send_packet(const Packet& p) noexcept {
         return this->send_packet(p.get());
     }
 
@@ -260,12 +260,12 @@ the encoding and decoding api of the context.
 */
 class Encoder {
     
-    Encoder(CodecContext ctx, packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
+    Encoder(CodecContext ctx, Packet pkt) noexcept : ctx_{std::move(ctx)}, encoder_packet_{std::move(pkt)} {}
     public:
     // more ctors soonTM pass ur own packet or something
     static result<Encoder> make(CodecContext ctx, AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_open2(ctx.get(), ctx.codec(), options));
-        LUMA_AV_OUTCOME_TRY(pkt, packet::make());
+        LUMA_AV_OUTCOME_TRY(pkt, Packet::make());
         return Encoder{std::move(ctx), std::move(pkt)};
     }
     static result<Encoder> make(const cstr_view codec_name, 
@@ -305,16 +305,16 @@ class Encoder {
         return detail::ffmpeg_code_to_result(ec);
     }
     // if the user doesnt want their own packet after encoding the frame
-    packet const& view_packet() noexcept {
+    Packet const& view_packet() noexcept {
         return encoder_packet_;
     }
     // if they do want their own packet
-    result<packet> ref_packet() noexcept {
-        return packet::make(encoder_packet_.get(), packet::shallow_copy);
+    result<Packet> ref_packet() noexcept {
+        return Packet::make(encoder_packet_.get(), Packet::shallow_copy);
     }
     private:
     CodecContext ctx_;
-    packet encoder_packet_;
+    Packet encoder_packet_;
 };
 
 /**
@@ -391,7 +391,7 @@ class Decoder {
         auto ec = avcodec_send_packet(ctx_.get(), p);
         return detail::ffmpeg_code_to_result(ec);
     }
-    result<void> send_packet(const packet& p) noexcept {
+    result<void> send_packet(const Packet& p) noexcept {
         auto ec = avcodec_send_packet(ctx_.get(), p.get());
         return detail::ffmpeg_code_to_result(ec);
     }
@@ -470,7 +470,7 @@ struct DecodeInterfaceImpl {
 
 struct EncodeInterfaceImpl {
     using coder_type = Encoder;
-    using out_type = packet;
+    using out_type = Packet;
     template <class F>
     static result<void> SendInput(Encoder& enc, F const& frame) noexcept {
         return enc.send_frame(frame);
@@ -480,7 +480,7 @@ struct EncodeInterfaceImpl {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
         return enc.send_frame(frame);
     }
-    static result<std::reference_wrapper<const packet>> RecieveOutput(Encoder& enc) noexcept {
+    static result<std::reference_wrapper<const Packet>> RecieveOutput(Encoder& enc) noexcept {
         LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
         return enc.view_packet();
     }

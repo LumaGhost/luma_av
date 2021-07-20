@@ -13,7 +13,7 @@ extern "C" {
 
 namespace luma_av {
 
-class packet {
+class Packet {
 
     struct packet_deleter {
         void operator()(AVPacket* pkt) const noexcept {
@@ -22,7 +22,7 @@ class packet {
             //  one we should use instead?
         }
     };
-    using This = packet;
+    using This = Packet;
     using unique_pkt = std::unique_ptr<AVPacket, packet_deleter>;
 
 /**
@@ -42,18 +42,18 @@ class packet {
 
     unique_pkt pkt_;
 
-    packet(AVPacket* pkt) noexcept : pkt_{pkt} {
+    Packet(AVPacket* pkt) noexcept : pkt_{pkt} {
 
     }
 
     public:
 
-    static result<packet> make() noexcept {
+    static result<Packet> make() noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, alloc_packet());
-        return packet{pkt.release()};
+        return Packet{pkt.release()};
     }
 
-    static result<packet> make(int size) noexcept {
+    static result<Packet> make(int size) noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, This::make());
         LUMA_AV_OUTCOME_TRY_FF(av_new_packet(pkt.pkt_.get(), size));
         // we're actually calling the result ctor here so we need to move
@@ -70,28 +70,28 @@ class packet {
     */
     struct shallow_copy_t {};
     static constexpr auto shallow_copy = shallow_copy_t{}; 
-    static result<packet> make(const AVPacket* in_pkt, shallow_copy_t) noexcept {
+    static result<Packet> make(const AVPacket* in_pkt, shallow_copy_t) noexcept {
         LUMA_AV_ASSERT(in_pkt);
         LUMA_AV_OUTCOME_TRY(pkt, This::make());
         LUMA_AV_OUTCOME_TRY_FF(av_packet_copy_props(pkt.pkt_.get(), in_pkt));
         LUMA_AV_OUTCOME_TRY_FF(av_packet_ref(pkt.pkt_.get(), in_pkt));
         return std::move(pkt);
     }
-    static result<packet> make(const packet& in_pkt, shallow_copy_t) noexcept {
+    static result<Packet> make(const Packet& in_pkt, shallow_copy_t) noexcept {
         return This::make(in_pkt.get(), shallow_copy);
     }
 
-    static result<packet> make(const AVPacket* in_pkt) noexcept {
+    static result<Packet> make(const AVPacket* in_pkt) noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, This::make(in_pkt, shallow_copy));
         LUMA_AV_OUTCOME_TRY_FF(av_buffer_make_writable(&pkt.pkt_->buf));
         return std::move(pkt);
     }
 
-    packet(const packet&) = delete;
-    packet& operator=(const packet&) = delete;
+    Packet(const Packet&) = delete;
+    Packet& operator=(const Packet&) = delete;
 
-    packet(packet&&) noexcept = default;
-    packet& operator=(packet&&) noexcept = default;
+    Packet(Packet&&) noexcept = default;
+    Packet& operator=(Packet&&) noexcept = default;
 
     /**
     maybe change the name. but for now a tiny amnt of code uses this so im keeping it for now

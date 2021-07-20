@@ -247,9 +247,9 @@ TEST(DecodeVideoIntegration, ParserParseOne) {
         std::vector<std::span<const uint8_t>> v{data};
         auto pipe = 
             v | luma_av::views::parse_packets(parser);
-        std::vector<luma_av::packet> packets;
+        std::vector<luma_av::Packet> packets;
         std::ranges::transform(pipe, std::back_inserter(packets), [](auto&& pkt_ref){
-            return luma_av::packet::make(pkt_ref.value().get(), luma_av::packet::shallow_copy).value();
+            return luma_av::Packet::make(pkt_ref.value().get(), luma_av::Packet::shallow_copy).value();
         });
         if (!packets.empty()) {
             break;
@@ -275,7 +275,7 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
     /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
     memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
     
-    std::vector<luma_av::packet> parsed;
+    std::vector<luma_av::Packet> parsed;
     while (!feof(f)) {
         /* read raw data from the input file */
         auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
@@ -288,7 +288,7 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
         auto pipe = 
             v | luma_av::views::parse_packets(parser);
         std::ranges::transform(pipe, std::back_inserter(parsed), [](auto&& pkt_ref){
-                return luma_av::packet::make(pkt_ref.value().get(), luma_av::packet::shallow_copy).value();
+                return luma_av::Packet::make(pkt_ref.value().get(), luma_av::Packet::shallow_copy).value();
         });
     }
     ASSERT_FALSE(parsed.empty());

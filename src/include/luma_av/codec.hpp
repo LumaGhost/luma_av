@@ -409,7 +409,7 @@ class Decoder {
     }
 
     result<Frame> ref_frame() noexcept {
-        return Frame::make(decoder_frame_.get(), Frame::shallow_copy);
+        return Frame::make(decoder_frame_.get());
     }
     private:
     CodecContext ctx_;

@@ -281,13 +281,10 @@ class Frame {
         return std::move(frame);
     }
 
-    struct shallow_copy_t{};
-    static constexpr auto shallow_copy = shallow_copy_t{};
-
     using ffmpeg_ptr_type = AVFrame const*;
 
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
-    static result<Frame> make(const NonOwning<Frame> in_frame, shallow_copy_t) noexcept {
+    static result<Frame> make(const NonOwning<Frame> in_frame) noexcept {
         auto* new_frame = av_frame_clone(in_frame.ptr());
         if (!new_frame) {
             return luma_av::outcome::failure(errc::alloc_failure);

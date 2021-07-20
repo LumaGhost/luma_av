@@ -190,7 +190,7 @@ TEST(codec, read_transcode_ranges2) {
     auto dec_fut = std::async([&]() -> void {
         for (const auto frame : queue_pop_view(packets) | decode(dec)) {
             if (frame) {
-                frames.emplace(Frame::make(frame.value().get(), Frame::shallow_copy));
+                frames.emplace(Frame::make(frame.value().get()));
             } else if (frame.error().value() == AVERROR(EAGAIN)) {
                 continue;
             } else {
@@ -354,7 +354,7 @@ TEST(codec, asyncTranscodeNewRanges) {
     auto dec_fut = std::async([&]() -> void {
         for (const auto frame : queue_pop_view(packets) | decode(dec) | scale(sws)) {
             if (frame) {
-                frames.emplace(Frame::make(frame.value().get(), Frame::shallow_copy));
+                frames.emplace(Frame::make(frame.value().get()));
             } else {
                 frames.emplace(frame.error());
                 return;

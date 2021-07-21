@@ -96,7 +96,7 @@ TEST(FilterVideoExample, MyExample) {
     };
     const auto set_frame_pts = [](const auto& frame_res) -> std::decay_t<decltype(frame_res)> {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
-        // frame.get().get()->pts = frame.get().get()->best_effort_timestamp;
+        frame->get()->pts = frame->get()->best_effort_timestamp;
         return std::move(frame);
     };
 

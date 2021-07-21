@@ -519,7 +519,7 @@ input_reader_view(R&&, Reader&) -> input_reader_view<std::ranges::views::all_t<R
 template <std::ranges::view R>
 template <bool is_const>
 class input_reader_view<R>::iterator {
-    using output_type = result<std::reference_wrapper<const Packet>>;
+    using output_type = result<NotNull<Packet*>>;
     using parent_t = detail::MaybeConst_t<is_const, input_reader_view<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;
@@ -571,7 +571,7 @@ output_type operator*() const {
     while(true) {
         if (auto res = reader.ReadFrameInPlace()) {
             if (skip_count_ <= 0) {
-                auto out = output_type{reader.view_packet()};
+                auto out = output_type{std::addressof(reader.view_packet())};
                 cached_packet_ = out;
                 skip_count_ = -1;
                 return out;

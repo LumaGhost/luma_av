@@ -125,7 +125,7 @@ class ScaleSession {
     };
 
 
-    result<std::reference_wrapper<const Frame>> Scale(Frame const& src_frame) {
+    result<NotNull<Frame*>> Scale(Frame const& src_frame) {
         if (!ctx_) {
             LUMA_AV_OUTCOME_TRY(ctx, ScaleContext::make(
                         {src_frame.width(), 
@@ -134,18 +134,18 @@ class ScaleSession {
             ctx_ = std::move(ctx);
         }
         LUMA_AV_OUTCOME_TRY(ctx_->Scale(src_frame, out_frame_));
-        return out_frame_;
+        return std::addressof(out_frame_);
     }
 };
 
 struct ScaleClosure {
     ScaleSession& sws;
-    result<std::reference_wrapper<const Frame>> operator()(
-            result<std::reference_wrapper<const Frame>> const& frame_res) noexcept {
+    result<NotNull<Frame*>> operator()(
+            result<NotNull<Frame*>> const& frame_res) noexcept {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
-        return sws.Scale(frame);
+        return sws.Scale(*frame);
     }
-    result<std::reference_wrapper<const Frame>> operator()(Frame const& frame) noexcept {
+    result<NotNull<Frame*>> operator()(Frame const& frame) noexcept {
         return sws.Scale(frame);
     }
 };

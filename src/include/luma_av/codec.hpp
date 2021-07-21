@@ -305,7 +305,10 @@ class Encoder {
         return detail::ffmpeg_code_to_result(ec);
     }
     // if the user doesnt want their own packet after encoding the frame
-    Packet const& view_packet() noexcept {
+    Packet& view_packet() noexcept {
+        return encoder_packet_;
+    }
+    Packet const& view_packet() const noexcept {
         return encoder_packet_;
     }
     // if they do want their own packet
@@ -404,7 +407,10 @@ class Decoder {
         }
     }
 
-    Frame const& view_frame() noexcept {
+    Frame const& view_frame() const noexcept {
+        return decoder_frame_;
+    }
+    Frame& view_frame() noexcept {
         return decoder_frame_;
     }
 
@@ -456,14 +462,13 @@ struct DecodeInterfaceImpl {
     static result<void> SendInput(Decoder& dec, Pkt const& pkt) noexcept {
         return dec.send_packet(pkt);
     }
-    template <class Pkt>
-    static result<void> SendInput(Decoder& dec, result<Pkt> const& pkt_res) noexcept {
+    static result<void> SendInput(Decoder& dec, result<Packet*> const& pkt_res) noexcept {
         LUMA_AV_OUTCOME_TRY(pkt, pkt_res);
-        return dec.send_packet(pkt);
+        return dec.send_packet(*pkt);
     }
-    static result<std::reference_wrapper<const Frame>> RecieveOutput(Decoder& dec) noexcept {
+    static result<NotNull<Frame*>> RecieveOutput(Decoder& dec) noexcept {
         LUMA_AV_OUTCOME_TRY(dec.recieve_frame());
-        return dec.view_frame();
+        return std::addressof(dec.view_frame());
     }
     // they already have the same .start_draining()
 };
@@ -475,14 +480,13 @@ struct EncodeInterfaceImpl {
     static result<void> SendInput(Encoder& enc, F const& frame) noexcept {
         return enc.send_frame(frame);
     }
-    template <class F>
-    static result<void> SendInput(Encoder& enc, result<F> const& frame_res) noexcept {
+    static result<void> SendInput(Encoder& enc, result<Frame*> const& frame_res) noexcept {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
-        return enc.send_frame(frame);
+        return enc.send_frame(*frame);
     }
-    static result<std::reference_wrapper<const Packet>> RecieveOutput(Encoder& enc) noexcept {
+    static result<NotNull<Packet*>> RecieveOutput(Encoder& enc) noexcept {
         LUMA_AV_OUTCOME_TRY(enc.recieve_packet());
-        return enc.view_packet();
+        return std::addressof(enc.view_packet());
     }
     // they already have the same .start_draining()
 };
@@ -547,7 +551,7 @@ encdec_view_impl(R&&, typename EncDec::coder_type) -> encdec_view_impl<EncDec, s
 template <class EncDec, std::ranges::view R>
 template <bool is_const>
 class encdec_view_impl<EncDec, R>::iterator {
-    using output_type = result<std::reference_wrapper<const typename EncDec::out_type>>;
+    using output_type = result<NotNull<typename EncDec::out_type*>>;
     using parent_t = detail::MaybeConst_t<is_const, encdec_view_impl<EncDec, R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;
@@ -837,7 +841,7 @@ class iterator;
 template <class EncDecInterface, std::ranges::view R>
 template <bool is_const>
 class codec_drain_view<EncDecInterface, R>::iterator {
-    using output_type = result<std::reference_wrapper<const typename EncDecInterface::out_type>>;
+    using output_type = result<NotNull<typename EncDecInterface::out_type*>>;
     using parent_t = detail::MaybeConst_t<is_const, codec_drain_view<EncDecInterface, R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;

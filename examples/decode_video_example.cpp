@@ -51,7 +51,7 @@ TEST(DecodeVideoExample, MyExample) {
         if (!res) {
             std::cout << "error!!! " << res.error().message() << std::endl;
         }
-        auto&& frame = res.value().get();
+        auto&& frame = *res.value();
         printf("saving frame %3d\n", frame_num);
         fflush(stdout);
         char buf[1024];
@@ -92,7 +92,7 @@ TEST(DecodeVideoExample, MyExampleStdFileScaling) {
     memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
 
     auto save_frames = [&, frame_num = 0](const auto& res) mutable {
-        auto&& frame = res.value().get();
+        auto&& frame = *res.value();
         std::cout << "saving frame " << frame_num << std::endl;
         auto file_name = std::string{outfilename} + "-" + std::to_string(frame_num);
         pgm_save(frame.data()[0], frame.linesize()[0],

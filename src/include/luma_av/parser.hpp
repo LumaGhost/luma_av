@@ -105,11 +105,11 @@ class Parser {
         return Parser{std::move(parser_ctx), std::move(pkt)};
     }
 
-    std::pair<result<std::reference_wrapper<const Packet>>, 
+    std::pair<result<NotNull<Packet*>>, 
         std::span<const uint8_t>> ParseStep(std::span<const uint8_t> in_buff) noexcept { 
         const auto [res, buff] = parser_.ParseStep(out_pkt_, in_buff);
         if (res) {
-            return {luma_av::outcome::success(std::cref(out_pkt_)), buff};
+            return {luma_av::outcome::success(std::addressof(out_pkt_)), buff};
         } else {
             return {res.error(), buff};
         }
@@ -123,7 +123,7 @@ std::pair<result<void>, std::span<const uint8_t>> ParseAll(Parser& parser,
     while (true) {
         const auto [pkt, buff] = parser.ParseStep(parse_me_uwu);
         if (pkt) {
-            *output = Packet::make(pkt.value().get());
+            *output = Packet::make(*pkt.value());
         } else if (pkt.error() == errc::parser_hungry_uwu) {
             parse_me_uwu = buff;
         } else {
@@ -193,7 +193,7 @@ parser_view_impl(R&&, Parser&) -> parser_view_impl<std::ranges::views::all_t<R>>
 template <std::ranges::view R>
 template <bool is_const>
 class parser_view_impl<R>::iterator {
-    using output_type = result<std::reference_wrapper<const Packet>>;
+    using output_type = result<NotNull<Packet*>>;
     using parent_t = detail::MaybeConst_t<is_const, parser_view_impl<R>>;
     using base_t = detail::MaybeConst_t<is_const, R>;
     friend iterator<not is_const>;

@@ -252,11 +252,6 @@ struct AddFrameClosure {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);
         return filter_.AddSrcFrame(*frame);
     }
-    result<void> operator()(result<std::reference_wrapper<const Frame>> frame_res) noexcept {
-        LUMA_AV_OUTCOME_TRY(frame, frame_res);
-        // ill get rid of this overload soon (:
-        return filter_.AddSrcFrame(const_cast<Frame&>(frame.get()));
-    }
 };
 
 

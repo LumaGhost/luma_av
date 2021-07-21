@@ -64,7 +64,7 @@ static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
         if (!res) {
             std::cout << "error!!! " << res.error().message() << std::endl;
         }
-        auto&& frame = res.value().get();
+        auto&& frame = *res.value();
         const auto buff_size = frame.width() * frame.height();
         const auto gray_buff = frame.data()[0];
         frame_data.emplace_back(gray_buff, gray_buff+buff_size);
@@ -249,7 +249,7 @@ TEST(DecodeVideoIntegration, ParserParseOne) {
             v | luma_av::views::parse_packets(parser);
         std::vector<luma_av::Packet> packets;
         std::ranges::transform(pipe, std::back_inserter(packets), [](auto&& pkt_ref){
-            return luma_av::Packet::make(pkt_ref.value().get()).value();
+            return luma_av::Packet::make(*pkt_ref.value()).value();
         });
         if (!packets.empty()) {
             break;
@@ -288,7 +288,7 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
         auto pipe = 
             v | luma_av::views::parse_packets(parser);
         std::ranges::transform(pipe, std::back_inserter(parsed), [](auto&& pkt_ref){
-                return luma_av::Packet::make(pkt_ref.value().get()).value();
+                return luma_av::Packet::make(*pkt_ref.value()).value();
         });
     }
     ASSERT_FALSE(parsed.empty());

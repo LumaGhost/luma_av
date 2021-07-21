@@ -87,7 +87,7 @@ static std::string LumaAVFilterVideoEx() {
 
     const auto is_video = [&](auto const& pkt_res){
         if(pkt_res.has_value()) {
-            return pkt_res.value().get().get()->stream_index == vid_idx;
+            return pkt_res.value()->get()->stream_index == vid_idx;
         } else {
             return true;
         }

@@ -2,13 +2,14 @@
 
 ### Intro
 
-This library is meant to provide the functionality of ffmpeg through a modern c++20 interface. 
+This library is meant to provide the functionality of ffmpeg through a modern c++20 interface (:
 
-- The goal is to provide the features and semantics where available of the ffmpeg api and compatibility with existing code using the ffmpeg api thoguh Memory safe abstractions and other higher level features not available in c.
-- The examples directory contains side by side examples of our api and the C ffmpeg api.
+The goal is to provide the features and semantics of the ffmpeg api and compatibility with existing code using the ffmpeg api. while also providing memory safe abstractions and other higher level features not available in c. in the end we hope to make coding with ffmpeg a lot easier and safer (: at the cost of requiring newer c++ features.
 
+The examples directory contains side by side examples of our api and the C ffmpeg api (:
 
 #### Library Status
+
 In its current state the library should be seen as a proof of concept. There are still a lot of quality of life improvements to make before other people can comfortably work on the project , and the library design and semantics are still subject to revision and redesign. 
 
 ### Overview
@@ -51,7 +52,7 @@ note: examples assume `using namespace luma_av_literals;`
 
 ###  Error Handling
 
-This library does not use exceptions instead the [Outcome library](https://ned14.github.io/outcome/) is used to maintain flexibility around the ffmpeg library where certain aspects of the ffmpeg api are not exception safe.
+This library does not use exceptions (: instead we use the [Outcome library](https://ned14.github.io/outcome/). Mainly for easier integration with existing ffmpeg code that may not be exception safe. As well as personal preference against exceptions.
 
 Additionally, since we pass errors through return values objects with failable initialization are initialized using static methods rather than constructors.
 
@@ -73,4 +74,9 @@ that said, the following conan commans `should` get you up and running (:
 
 ### Contributing
 
-Currently not accepting direct contributions. Looking for feedback on the library and any suggestions for improvement or usability. 
+not quite ready for other developers but thats something i want in the future (: in the meantime id appreciate any discussion or feedback. mainly looking for feedback in terms of if you would use this library and why or why not. but i'll hear any type feedback. feedback doesnt have to be constructive just in good faith (:
+
+
+### Closing
+
+hopefully this readme at least answered some questions about what this library aims to accomplish, and how it plans to accomplish that. and hopefully enough abt how the libary works to get a feel for whether or not you are interested in using it (: feedback on the readme is especially appreciated!

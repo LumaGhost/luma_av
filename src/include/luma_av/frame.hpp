@@ -406,6 +406,10 @@ class Frame {
     const AVFrame* get() const noexcept {
         return frame_.get();
     }
+    AVFrame* release() && noexcept {
+        return frame_.release();
+    }
+    
 
 };
 

@@ -112,6 +112,9 @@ class CodecPar {
     const AVCodecParameters* get() const noexcept {
         return par_.get();
     }
+    AVCodecParameters* release() && noexcept {
+        return par_.release();
+    }
 
     ~CodecPar() noexcept = default;
     CodecPar(CodecPar const&) noexcept = delete;
@@ -228,6 +231,9 @@ class CodecContext {
     }
     AVCodecContext* get() noexcept {
         return ctx_.get();
+    }
+    AVCodecContext* release() && noexcept {
+        return ctx_.release();
     }
 };
 

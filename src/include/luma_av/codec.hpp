@@ -76,7 +76,7 @@ class CodecPar {
     unique_par par_;
     explicit CodecPar(AVCodecParameters* par) : par_{par} {}
     public:
-    using ffmpeg_ptr_type = AVCodecParameters*;
+
     static result<CodecPar> make() noexcept {
         LUMA_AV_OUTCOME_TRY(par, alloc_codec_par());
         return CodecPar{par.release()};
@@ -91,7 +91,6 @@ class CodecPar {
         LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_copy(par.get(), other.get()));
         return std::move(par);
     }
-    // we dont rly have an invariant besides being not null so we can let the user set the underlying ptr directly
     static result<CodecPar> FromOwner(AVCodecParameters* other) noexcept {
         LUMA_AV_ASSERT(other);
         return CodecPar{other};
@@ -161,19 +160,19 @@ class CodecContext {
         return CodecContext{ctx.release(), codec};
     }
 
-    static result<CodecContext> make(const cstr_view codec_name, const NonOwning<CodecPar> par) noexcept {
+    static result<CodecContext> make(const cstr_view codec_name, NotNull<AVCodecParameters const*> par) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name));
         LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
         return std::move(ctx);
     }
-    static result<CodecContext> make(const AVCodec* codec, const NonOwning<CodecPar> par) noexcept {
+    static result<CodecContext> make(const AVCodec* codec, NotNull<AVCodecParameters const*> par) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec));
         LUMA_AV_OUTCOME_TRY(ctx.SetPar(par));
         return std::move(ctx);
     }
 
-    result<void> SetPar(const NonOwning<CodecPar> par) noexcept {
-        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par.ptr()));
+    result<void> SetPar(NotNull<AVCodecParameters const*> par) noexcept {
+        LUMA_AV_OUTCOME_TRY_FF(avcodec_parameters_to_context(ctx_.get(), par));
         return luma_av::outcome::success();
     }
     result<CodecPar> GetPar() noexcept {
@@ -274,7 +273,7 @@ class Encoder {
         return Encoder::make(std::move(ctx), options);
     }
     static result<Encoder> make(const cstr_view codec_name, 
-                                const NonOwning<CodecPar> par, 
+                                NotNull<AVCodecParameters const*> par, 
                                 AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name, par));
         return Encoder::make(std::move(ctx), options);
@@ -379,7 +378,7 @@ class Decoder {
         return Decoder::make(std::move(ctx), options);
     }
     static result<Decoder> make(const cstr_view codec_name, 
-                                const NonOwning<CodecPar> par, 
+                                NotNull<AVCodecParameters const*> par, 
                                 AVDictionary**  options = nullptr) noexcept {
         LUMA_AV_OUTCOME_TRY(ctx, CodecContext::make(codec_name, par));
         return Decoder::make(std::move(ctx), options);

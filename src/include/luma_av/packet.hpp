@@ -117,6 +117,10 @@ class Packet {
         return pkt_.get();
     }
 
+    const AVPacket* release() && noexcept {
+        return pkt_.release();
+    }
+
     /**
         view of the packets internal buffer
     */

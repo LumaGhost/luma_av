@@ -281,11 +281,9 @@ class Frame {
         return std::move(frame);
     }
 
-    using ffmpeg_ptr_type = AVFrame const*;
-
     // https://ffmpeg.org/doxygen/trunk/group__lavu__frame.html#ga46d6d32f6482a3e9c19203db5877105b
-    static result<Frame> make(const NonOwning<Frame> in_frame) noexcept {
-        auto* new_frame = av_frame_clone(in_frame.ptr());
+    static result<Frame> make(NotNull<AVFrame const*> in_frame) noexcept {
+        auto* new_frame = av_frame_clone(in_frame);
         if (!new_frame) {
             return luma_av::outcome::failure(errc::alloc_failure);
         }
@@ -408,6 +406,10 @@ class Frame {
     const AVFrame* get() const noexcept {
         return frame_.get();
     }
+    AVFrame* release() && noexcept {
+        return frame_.release();
+    }
+    
 
 };
 

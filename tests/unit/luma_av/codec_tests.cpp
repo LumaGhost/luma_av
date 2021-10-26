@@ -102,7 +102,7 @@ TEST(codec, transcode_functions) {
 
 TEST(codec, read_transcode_ranges) {
 
-    auto reader = Reader::make("input_url"_cv).value();
+    auto reader = Reader::make("input_url"_cstr).value();
 
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
@@ -124,7 +124,7 @@ TEST(codec, read_transcode_ranges) {
 }
 
 TEST(codec, read_transcode_functions) {
-    auto reader = Reader::make("input_url"_cv).value();
+    auto reader = Reader::make("input_url"_cstr).value();
 
     auto dec = DefaultDecoder("h264").value();
     auto enc = DefaultEncoder("h264").value();
@@ -162,10 +162,10 @@ const auto queue_pop_view = [](auto& q){
 
 // TEST(codec, read_transcode_ranges2) {
 
-//     auto reader = Reader::make("input_url"_cv).value();
+//     auto reader = Reader::make("input_url"_cstr).value();
 
-//     auto dec = Decoder::make("h264"_cv).value();
-//     auto enc = Encoder::make("h264"_cv).value();
+//     auto dec = Decoder::make("h264"_cstr).value();
+//     auto enc = Encoder::make("h264"_cstr).value();
 
 //     std::vector<Packet> out_pkts;
 //     out_pkts.reserve(5);
@@ -225,10 +225,10 @@ const auto queue_pop_view = [](auto& q){
 
 TEST(codec, read_transcode_scale_ranges) {
 
-    auto reader = Reader::make("input_url"_cv).value();
+    auto reader = Reader::make("input_url"_cstr).value();
 
-    auto dec = Decoder::make("h264"_cv).value();
-    auto enc = Encoder::make("h264"_cv).value();
+    auto dec = Decoder::make("h264"_cstr).value();
+    auto enc = Encoder::make("h264"_cstr).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
     std::vector<Packet> out_pkts;
@@ -248,7 +248,7 @@ TEST(codec, read_transcode_scale_ranges) {
 }
 
 TEST(codec, decode_view_messsaround) {
-    auto dec = Decoder::make("h264"_cv).value();
+    auto dec = Decoder::make("h264"_cstr).value();
 
     std::vector<Packet> out_pkts;
     auto dv = decode_view(std::views::all(out_pkts), dec);
@@ -278,7 +278,7 @@ TEST(codec, decode_view_messsaround) {
 }
 
 TEST(codec, enc_view_messsaround) {
-    auto enc = Encoder::make("h264"_cv).value();
+    auto enc = Encoder::make("h264"_cstr).value();
 
     std::vector<Frame> out_frames;
     auto dv = encode_view(std::views::all(out_frames), enc);
@@ -309,10 +309,10 @@ TEST(codec, enc_view_messsaround) {
 
 
 TEST(codec, NewRangesUwU) {
-    auto reader = Reader::make("input_url"_cv).value();
+    auto reader = Reader::make("input_url"_cstr).value();
 
-    auto dec = Decoder::make("h264"_cv).value();
-    auto enc = Encoder::make("h264"_cv).value();
+    auto dec = Decoder::make("h264"_cstr).value();
+    auto enc = Encoder::make("h264"_cstr).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
     auto pipe = read_input(reader) | decode(dec) | scale(sws) | encode(enc) 
@@ -328,10 +328,10 @@ TEST(codec, NewRangesUwU) {
 
 // TEST(codec, asyncTranscodeNewRanges) {
 
-//     auto reader = Reader::make("input_url"_cv).value();
+//     auto reader = Reader::make("input_url"_cstr).value();
 
-//     auto dec = Decoder::make("h264"_cv).value();
-//     auto enc = Encoder::make("h264"_cv).value();
+//     auto dec = Decoder::make("h264"_cstr).value();
+//     auto enc = Encoder::make("h264"_cstr).value();
 //     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
 //     std::vector<Packet> out_pkts;
@@ -383,10 +383,10 @@ TEST(codec, NewRangesUwU) {
 
 // TEST(codec, asyncTranscodeNewRanges2) {
 
-//     auto reader = Reader::make("input_url"_cv).value();
+//     auto reader = Reader::make("input_url"_cstr).value();
 
-//     auto dec = Decoder::make("h264"_cv).value();
-//     auto enc = Encoder::make("h264"_cv).value();
+//     auto dec = Decoder::make("h264"_cstr).value();
+//     auto enc = Encoder::make("h264"_cstr).value();
 //     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
 //     std::vector<Packet> out_pkts;
@@ -425,9 +425,9 @@ TEST(codec, NewRangesUwU) {
 
 
 TEST(codec, ParseyUwU) {
-    auto parser = Parser::make("h264"_cv).value();
-    auto dec = Decoder::make("h264"_cv).value();
-    auto enc = Encoder::make("h264"_cv).value();
+    auto parser = Parser::make("h264"_cstr).value();
+    auto dec = Decoder::make("h264"_cstr).value();
+    auto enc = Encoder::make("h264"_cstr).value();
     auto sws = ScaleSession::make(ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
     // std::span<const uint8_t> whaaa{};

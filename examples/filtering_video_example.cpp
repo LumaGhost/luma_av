@@ -70,16 +70,16 @@ TEST(FilterVideoExample, MyExample) {
             .PixFormat(dec_ctx.get()->pix_fmt)
             .AspectRatio(dec_ctx.get()->sample_aspect_ratio)
             .TimeBase(time_base);
-    const auto src_filt = luma_av::FindFilter("buffer"_cv).value();
-    filter_graph.CreateSrcFilter(src_filt, "in"_cv, filter_args).value();
+    const auto src_filt = luma_av::FindFilter("buffer"_cstr).value();
+    filter_graph.CreateSrcFilter(src_filt, "in"_cstr, filter_args).value();
 
-    const auto sink_filt = luma_av::FindFilter("buffersink"_cv).value();
-    filter_graph.CreateSinkFilter(sink_filt, "out"_cv).value();
+    const auto sink_filt = luma_av::FindFilter("buffersink"_cstr).value();
+    filter_graph.CreateSinkFilter(sink_filt, "out"_cstr).value();
     
     std::vector<AVPixelFormat> pix_fmts{AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE};
     filter_graph.SetSinkFilterFormats(pix_fmts).value();
     
-    filter_graph.FinalizeConfig("scale=78:24,transpose=cclock"_cv).value();
+    filter_graph.FinalizeConfig("scale=78:24,transpose=cclock"_cstr).value();
     const auto sink_timebase = filter_graph.sink_context()->inputs[0]->time_base;
 
 

@@ -29,10 +29,10 @@ Additionally, we use c++20 ranges to express a lot of the processing operations 
 this example shows a simple transcoding processing pipeline where we read a video file, decode, scale, and encode (:
 saving the output video is still a work in progress so im just leaving the packets in a vector (:
 ```
-auto reader = luma_av::Reader::make("input_url"_cv).value();
+auto reader = luma_av::Reader::make("input_url"_cstr).value();
 
-auto dec = luma_av::Decoder::make("h264"_cv).value();
-auto enc = luma_av::Encoder::make("h264"_cv).value();
+auto dec = luma_av::Decoder::make("h264"_cstr).value();
+auto enc = luma_av::Encoder::make("h264"_cstr).value();
 auto sws = luma_av::ScaleSession::make(luma_av::ScaleOpts{1920_w, 1080_h, AV_PIX_FMT_RGB24}).value();
 
 auto pipe = luma_av::views::read_input(reader) 

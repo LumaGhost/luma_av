@@ -88,8 +88,15 @@ using NotNull = T;
 template <class T>
 using Owner = T;
 
+
+/**
+ minimal view for a null terminated const char*
+ */
 class cstr_view {
     public:
+    /**
+     you, the user, promise that the string is null terimated <3
+     */
     constexpr explicit cstr_view(const char* cstr) : cstr_{cstr} {}
 
     /*implicit*/ cstr_view(std::string const& str) : cstr_{str.c_str()} {}
@@ -109,7 +116,7 @@ enum class Height : int {};
 
 namespace luma_av_literals {
 
-inline luma_av::cstr_view operator ""_cv (const char* cstr, std::size_t) noexcept {
+inline luma_av::cstr_view operator ""_cstr (const char* cstr, std::size_t) noexcept {
     return luma_av::cstr_view{cstr};
 }
 

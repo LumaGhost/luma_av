@@ -4,6 +4,7 @@
 #define LUMA_AV_UTIL_HPP
 
 #include <concepts>
+#include <exception>
 #include <functional>
 #include <type_traits>
 #include <string>

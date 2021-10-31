@@ -26,7 +26,7 @@ class LumaAvConan(ConanFile):
         self.requires("ffmpeg/4.2.1@bincrafters/stable")
         self.requires("zlib/1.2.11@conan/stable")
         self.requires("bzip2/1.0.8@conan/stable")
-        self.requires("gtest/1.8.1")
+        self.requires("gtest/1.11.0")
 
     def build(self):
         cmake = CMake(self)

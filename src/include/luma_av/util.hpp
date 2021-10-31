@@ -3,10 +3,10 @@
 #ifndef LUMA_AV_UTIL_HPP
 #define LUMA_AV_UTIL_HPP
 
-
 #include <concepts>
 #include <functional>
 #include <type_traits>
+#include <string>
 
 #ifdef LUMA_AV_ENABLE_ASSERTION_LOG
 #include <iostream>

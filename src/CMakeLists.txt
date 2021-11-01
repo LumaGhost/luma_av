@@ -9,7 +9,7 @@ target_include_directories(luma_av PUBLIC
 )
 
 target_link_libraries(luma_av PUBLIC 
-    Boost::boost
+    outcome::outcome
     ffmpeg::ffmpeg
 )
 

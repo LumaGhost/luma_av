@@ -13,17 +13,15 @@ class LumaAvConan(ConanFile):
     options = {"shared": [True, False]}
     default_options = {
         "shared": False,
-        "ffmpeg:xcb": False,
-        "ffmpeg:opus": False,
-        "ffmpeg:alsa": False,
+        "ffmpeg:with_opus": False,
         "gtest:build_gmock": False
     }
     generators = "cmake_find_package"
     exports_sources = "src/*", "test/*", "CMakeLists.txt"
 
     def requirements(self):
-        self.requires("boost/1.75.0")
-        self.requires("ffmpeg/4.2.1@bincrafters/stable")
+        self.requires("outcome/2.1.5")
+        self.requires("ffmpeg/4.4")
         self.requires("zlib/1.2.11@conan/stable")
         self.requires("bzip2/1.0.8@conan/stable")
         self.requires("gtest/1.11.0")

@@ -107,7 +107,7 @@ struct VideoParams {
 
 struct AudioParams {
     int nb_samples_{};
-    int channel_layout_{};
+    uint64_t channel_layout_{};
 
     int nb_samples() const noexcept {
         return nb_samples_;
@@ -117,10 +117,10 @@ struct AudioParams {
         return *this;
     }
 
-    int channel_layout() const noexcept {
+    uint64_t channel_layout() const noexcept {
         return channel_layout_;
     }
-    auto& channel_layout(int c) noexcept {
+    auto& channel_layout(uint64_t c) noexcept {
         channel_layout_ = c;
         return *this;
     }

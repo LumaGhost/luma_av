@@ -126,12 +126,12 @@ class Packet {
     */
     std::span<const uint8_t> span() const noexcept {
         LUMA_AV_ASSERT(this->has_buffer());
-        return {pkt_.get()->data, pkt_.get()->size};
+        return {pkt_.get()->data, static_cast<std::size_t>(pkt_.get()->size)};
     }
     std::span<uint8_t> span() noexcept {
         LUMA_AV_ASSERT(this->has_buffer());
         LUMA_AV_ASSERT(this->is_writable());
-        return {pkt_.get()->data, pkt_.get()->size};
+        return {pkt_.get()->data, static_cast<std::size_t>(pkt_.get()->size)};
     }
 
     /**

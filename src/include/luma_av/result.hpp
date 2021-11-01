@@ -10,16 +10,17 @@ extern "C" {
 
 #include <system_error>
 
-#include <boost/outcome.hpp>
-#ifdef LUMA_AV_NOEXCEPT_NOVALUE_POLICY
-#include <boost/policy/terminate.hpp>
-#endif // LUMA_AV_NOEXCEPT_NOVALUE_POLICY
+#include <outcome.hpp>
 
-#define LUMA_AV_OUTCOME_TRY BOOST_OUTCOME_TRY
+#define LUMA_AV_OUTCOME_TRY OUTCOME_TRY
 
 namespace luma_av {
 
-namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
+#ifdef OUTCOME_V2_NAMESPACE
+namespace outcome = OUTCOME_V2_NAMESPACE;
+#else
+#error "outcome namespace not defined"
+#endif
 
 enum class errc : int
 {

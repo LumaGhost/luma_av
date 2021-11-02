@@ -1713,6 +1713,10 @@ Distributed under the Boost Software License, Version 1.0.
 #define OUTCOME_DETAIL_COROUTINE_SUPPORT_HPP
 #include <atomic>
 #include <cassert>
+
+// force coro support off
+#define OUTCOME_HAVE_NOOP_COROUTINE 0
+
 #if __cpp_impl_coroutine || (defined(_MSC_VER) && __cpp_coroutines) || (defined(__clang__) && __cpp_coroutines)
 #ifndef OUTCOME_HAVE_NOOP_COROUTINE
 #if defined(__has_builtin)
@@ -1728,7 +1732,9 @@ Distributed under the Boost Software License, Version 1.0.
 #define OUTCOME_HAVE_NOOP_COROUTINE 0
 #endif
 #endif
-#if __has_include(<coroutine>)
+// pretend we dont have the coro include
+// #if __has_include(<coroutine>)
+#if 0
 #include <coroutine>
 OUTCOME_V2_NAMESPACE_BEGIN
 namespace awaitables

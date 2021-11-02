@@ -23,6 +23,14 @@ conan build . -bf build
 ```
 note: if you want to switch between building with clang and gcc first delete your build folder and rerun `conan install`
 
+#### Clangd vscode setup
+
+Add the following to your settings.json in vscode (assuming you're using the clang_dev image)
+
+```
+"clangd.path":"/llvm-project/build/bin/clangd"
+```
+
 ### gcc_dev (deprecated)
 
 The same idea as clang_dev but much older compiler versions and also no profile for building for clang. This setup is deprecated and is going to be removed once we're fully comfortable with clang_dev (:

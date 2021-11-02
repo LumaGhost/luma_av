@@ -23,7 +23,7 @@ RUN pip3 install conan && \
     conan config set general.revisions_enabled=1
 
 RUN conan profile new clang --detect && \
-    conan profile update settings.compiler.libcxx=libc++ clang && \
+    conan profile update settings.compiler.libcxx=libstdc++11 clang && \
     conan profile update settings.compiler=clang clang && \
     conan profile update settings.compiler.version=13 clang && \
     conan profile update env.CC=/llvm-project/build/bin/clang clang && \

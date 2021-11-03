@@ -13,6 +13,7 @@ extern "C" {
 #include <libavutil/opt.h>
 }
 
+#include <algorithm>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <luma_av/codec.hpp>

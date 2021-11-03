@@ -10,7 +10,7 @@ extern "C" {
 
 #include <system_error>
 
-#include <3rd_party/outcome/2.1.5/outcome.hpp>
+#include <outcome.hpp>
 
 #define LUMA_AV_OUTCOME_TRY OUTCOME_TRY
 

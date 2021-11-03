@@ -30,6 +30,7 @@ Add the following to your settings.json in vscode (assuming you're using the cla
 ```
 "clangd.path":"/llvm-project/build/bin/clangd"
 ```
+Note: clangd will work for some things but probably wont be accurate until we can fully compile the project with clang
 
 ### gcc_dev (deprecated)
 

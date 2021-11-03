@@ -31,7 +31,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
-
+#include <algorithm>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <luma_av/codec.hpp>

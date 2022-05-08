@@ -11,9 +11,11 @@ Includes latest versions of clang and gcc, and development and build tools like 
 
 #### Commands for Development:
 
+if you are familiar with conan feel free to use your own commands (:
+
 Install Dependencies:
 ```
-conan install . --profile clang -if build --build missing -s build_type=Debug
+conan install . --profile clang-libcxx -if build --build missing -s build_type=Debug
 ```
 note: you can omit the profile argument to build with gcc instead
 
@@ -25,12 +27,23 @@ note: if you want to switch between building with clang and gcc first delete you
 
 #### Clangd vscode setup
 
-Add the following to your settings.json in vscode (assuming you're using the clang_dev image)
+Add the following to you devcontainer.json
+
+```
+"extensions": [
+		"llvm-vs-code-extensions.vscode-clangd"
+]
+```
+
+Add the following to your settings.json (assuming you're using the clang_dev image and ./build as your build folder)
 
 ```
 "clangd.path":"/llvm-project/build/bin/clangd"
+"clangd.arguments": ["-compile-commands-dir=/workspaces/luma_av/build"]
 ```
 Note: clangd will work for some things but probably wont be accurate until we can fully compile the project with clang
+
+Troubleshootng: for the best results, do the following after making any changes to clangd config or the build enviornment: rebuild the contaner and call conan install and conan build before opening your first cpp source/header file
 
 ### gcc_dev (deprecated)
 

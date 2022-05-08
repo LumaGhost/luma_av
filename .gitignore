@@ -35,4 +35,3 @@ build/*
 test_vids/*
 .devcontainer/*
 .vscode/*
-compile_commands.json

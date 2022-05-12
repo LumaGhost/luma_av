@@ -60,6 +60,16 @@ to run clang-tidy on the whole project run the following from the build folder (
 ```
 python3 /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -clang-tidy-binary /llvm-project/build/bin/clang-tidy
 ```
+note: this command will run checks based on the .clang-tidy file in the project root. 
+
+to automatically apply fixes, add the following to your command. this will also apply our formatting to any code thats auto fixed.
+
+```
+-fix -clang-apply-replacements-binary /llvm-project/build/bin/clang-apply-replacements -format
+```
+
+see `run-clang-tidy.py --help` and https://clang.llvm.org/extra/clang-tidy/ for more info (: 
+
 
 you can also add a task to your vscode task.json using the following as an example
 

@@ -14,5 +14,6 @@
             "key": "x",
             "value": "y"
         }
-    ]
+    ],
+    "FormatStyle": "file"
 }

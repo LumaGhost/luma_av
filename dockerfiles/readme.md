@@ -51,6 +51,32 @@ formatting with vscode "just works" with the c++ extension in vscode due to the 
 
 unfortunately, I think at this time the vscode c++ extension is using its own copy of clang format and not the newer version in the image. this is something we'll ideally address in the future but isnt a priority for now since the formatting still works. 
 
+#### Running clang-tidy
+
+these commands use the install location for the clang_dev image, but they can of course be adapted for other install locations
+
+to run clang-tidy on the whole project run the following from the build folder (or wherever youve placed the compile commands json)
+
+```
+python3 /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -clang-tidy-binary /llvm-project/build/bin/clang-tidy
+```
+
+you can also add a task to your vscode task.json using the following as an example
+
+```
+{
+            "label": "clang-tidy",
+            "type": "shell",
+            "command": "python3 /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -clang-tidy-binary /llvm-project/build/bin/clang-tidy",
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            },
+            "problemMatcher": []
+}
+```
+
+note: there may be a better way, but I ususally have to ask vscode to rebuild the container in order for task.json changes to take affect. 
+
 
 ### gcc_dev (deprecated)
 

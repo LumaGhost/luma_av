@@ -1,0 +1,18 @@
+{
+    "Checks": "-*,
+            bugprone-*,
+            clang-analyzer-*,
+            concurrency-*,
+            cppcoreguidelines-*,
+            modernize-*,
+            performance-*,
+            portability-*,
+            readability-*,
+            ",
+    "CheckOptions": [
+        {
+            "key": "x",
+            "value": "y"
+        }
+    ]
+}

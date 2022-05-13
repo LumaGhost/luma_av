@@ -17,6 +17,7 @@ extern "C" {
 static auto kFileName = "./test_vids/fortnite_mpeg1_cut.mp4";
 static auto kOutputFile = "./test_vids/outputs/output_uwu";
 
+// NOLINTBEGIN
 #define INBUF_SIZE 4096
 static void pgm_save(const uint8_t* buf, int wrap, int xsize, int ysize,
                      const char *filename)
@@ -29,6 +30,7 @@ static void pgm_save(const uint8_t* buf, int wrap, int xsize, int ysize,
         fwrite(buf + i * wrap, 1, xsize, f);
     fclose(f);
 }
+// NOLINTEND
 
 TEST(DecodeVideoExample, MyExample) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
@@ -43,9 +45,11 @@ TEST(DecodeVideoExample, MyExample) {
     auto fc = luma_av::detail::finally([&](){
         fclose(f);
     });
+    // NOLINTBEGIN
     uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
     /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
     memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    // NOLINTEND
 
     int frame_num = 0;
     auto save_frames = [&](const auto& res) {
@@ -53,6 +57,7 @@ TEST(DecodeVideoExample, MyExample) {
             std::cout << "error!!! " << res.error().message() << std::endl;
         }
         auto&& frame = *res.value();
+        // NOLINTBEGIN
         printf("saving frame %3d\n", frame_num);
         fflush(stdout);
         char buf[1024];
@@ -62,6 +67,7 @@ TEST(DecodeVideoExample, MyExample) {
         pgm_save(frame.data()[0], frame.linesize()[0],
             frame.width(), frame.height(), buf);
         ++frame_num;
+        // NOLINTEND
     };
     while (!feof(f)) {
         /* read raw data from the input file */
@@ -119,7 +125,7 @@ TEST(DecodeVideoExample, MyExampleStdFileScaling) {
                             | luma_av::views::scale(sws), save_frames);
 }
 
-
+// NOLINTBEGIN
 static void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,
                    const char *filename)
 {
@@ -234,3 +240,4 @@ TEST(DecodeVideoExample, FullFFmpegExample)
     av_frame_free(&frame);
     av_packet_free(&pkt);
 }
+// NOLINTEND

@@ -41,7 +41,7 @@ extern "C" {
 static constexpr auto kFileName = "./test_vids/fortnite_mpeg1_cut.mp4";
 static constexpr auto kFrameCompCount = int{10};
 
-#define INBUF_SIZE 4096
+#define INBUF_SIZE 4096 // NOLINT
 
 static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
@@ -89,6 +89,7 @@ static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
 }
 
 
+// NOLINTBEGIN
 static std::vector<std::vector<uint8_t>> FFmpegDecodeVideoExample()
 {
     const auto decode = [](AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt,
@@ -203,7 +204,7 @@ static std::vector<std::vector<uint8_t>> FFmpegDecodeVideoExample()
     av_packet_free(&pkt);
     return frame_data;
 }
-
+// NOLINTEND
 
 TEST(DecodeVideoIntegration, FfmpegComparison) {
     const auto luma_frames = LumaAvDecodeVideo();
@@ -224,6 +225,7 @@ note: packet free'd first
 TEST(DecodeVideoIntegration, ParserParseOne) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto filename    = kFileName;
+    // NOLINTBEGIN
     FILE* f = fopen(filename, "rb");
     if (!f) {
         fprintf(stderr, "Could not open %s\n", filename);
@@ -235,6 +237,7 @@ TEST(DecodeVideoIntegration, ParserParseOne) {
     uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
     /* set end of buffer to 0 (this ensures that no overreading happens for damaged MPEG streams) */
     memset(inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+    // NOLINTEND
     
     while (!feof(f)) {
         /* read raw data from the input file */

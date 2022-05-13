@@ -75,6 +75,7 @@ static void LumaAVReadExample() {
     av_log_set_callback(av_log_default_callback);
 }
 
+// NOLINTBEGIN
 struct buffer_data {
     uint8_t *ptr;
     size_t size; ///< size left in the buffer
@@ -158,7 +159,7 @@ end:
         fprintf(stderr, "Error occurred: %s\n", "av_err2str(ret)");
     }
 }
-
+// NOLINTEND
 
 TEST(AVIOreadTests, FfmpegCompare) {
     LumaAVReadExample();

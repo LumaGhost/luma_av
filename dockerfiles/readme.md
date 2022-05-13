@@ -43,7 +43,7 @@ Add the following to your settings.json (assuming you're using the clang_dev ima
 ```
 Note: clangd will work for some things but probably wont be accurate until we can fully compile the project with clang
 
-Troubleshootng: for the best results, do the following after making any changes to clangd config or the build enviornment: rebuild the contaner and call conan install and conan build before opening your first cpp source/header file
+Troubleshootng: for the best results, do the following after making any changes to clangd config or the build enviornment: rebuild the contaner and call conan install and conan build before opening your first cpp source/header file. Note: I think closing all open source files will also work to restart/refresh clangd.
 
 #### Formatting with vscode and clang-format
 

@@ -29,6 +29,7 @@ TEST(AvioReadingExample, MyExample) {
     auto custom_reader = 
             [bd = BufferData{map_buff.data(), map_buff.size()}] 
             (uint8_t *buf, int buf_size) mutable -> int {
+        // NOLINTBEGIN
         buf_size = FFMIN(buf_size, bd.size);
         if (!buf_size)
             return AVERROR_EOF;
@@ -38,6 +39,7 @@ TEST(AvioReadingExample, MyExample) {
         bd.ptr  += buf_size;
         bd.size -= buf_size;
         return buf_size;
+        // NOLINTEND
     };
 
     auto io_callbacks = luma_av::CustomIOFunctions{}.CustomRead(std::move(custom_reader));
@@ -50,7 +52,7 @@ TEST(AvioReadingExample, MyExample) {
     av_dump_format(fctx.get(), 0, input_filename.c_str(), 0);
 }
 
-
+// NOLINTBEGIN 
 struct buffer_data {
     uint8_t *ptr;
     size_t size; ///< size left in the buffer
@@ -128,3 +130,4 @@ end:
         fprintf(stderr, "Error occurred: %s\n", "av_err2str(ret)");
     }
 }
+// NOLINTEND

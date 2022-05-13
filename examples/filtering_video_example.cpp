@@ -1,9 +1,11 @@
 // example based on https://ffmpeg.org/doxygen/trunk/filtering_video_8c-example.html
 
+// NOLINTBEGIN
 #define _XOPEN_SOURCE 600 /* for usleep */
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+// NOLINTEND
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -29,6 +31,7 @@ TEST(FilterVideoExample, MyExample) {
 
     auto my_display_frame = [last_pts = int64_t{0}]
                 (const AVFrame *frame, AVRational time_base) mutable {
+        // NOLINTBEGIN
         int x, y;
         uint8_t *p0, *p;
         int64_t delay;
@@ -54,6 +57,7 @@ TEST(FilterVideoExample, MyExample) {
             p0 += frame->linesize[0];
         }
         fflush(stdout);
+        // NOLINTEND
     };
 
     const auto input_filename = luma_av::cstr_view{kFileName};
@@ -113,7 +117,7 @@ TEST(FilterVideoExample, MyExample) {
     std::ranges::for_each(pipe, display);
 }
 
-
+// NOLINTBEGIN
 const char *filter_descr = "scale=78:24,transpose=cclock";
 /* other way:
    scale=78:24 [scl]; [scl] transpose=cclock // assumes "[in]" and "[out]" to be input output pads respectively
@@ -328,3 +332,4 @@ end:
         exit(1);
     }
 }
+// NOLINTEND

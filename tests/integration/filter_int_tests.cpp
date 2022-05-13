@@ -26,6 +26,7 @@ using namespace luma_av_literals;
 static auto kFileName = "./test_vids/fortnite_mpeg1_cut.mp4";
 
 static void my_display_frame(const AVFrame *frame, AVRational time_base, int64_t& last_pts, std::stringstream& disp) {
+    // NOLINTBEGIN
     int x, y;
     uint8_t *p0, *p;
     int64_t delay;
@@ -51,6 +52,7 @@ static void my_display_frame(const AVFrame *frame, AVRational time_base, int64_t
         p0 += frame->linesize[0];
     }
     disp << std::endl;
+    // NOLINTEND
 };
 
 static std::string LumaAVFilterVideoEx() {
@@ -114,6 +116,7 @@ static std::string LumaAVFilterVideoEx() {
     return std::move(disp).str();
 }
 
+// NOLINTBEGIN
 static std::string ffmpegFilterVideoEx() {
 
     const char *filter_descr = "scale=78:24,transpose=cclock";
@@ -303,6 +306,7 @@ static std::string ffmpegFilterVideoEx() {
         }
     return std::move(disp).str();
 }
+// NOLINTEND
 
 
 TEST(FilterIntTests, FFmpegComparison) {

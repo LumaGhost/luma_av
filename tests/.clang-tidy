@@ -8,11 +8,13 @@
             performance-*,
             portability-*,
             readability-*,
-            readability-identifier-naming,
             -modernize-use-trailing-return-type,
             -cppcoreguidelines-init-variables,
             -readability-identifier-length,
-            -readability-implicit-bool-conversion
+            -readability-implicit-bool-conversion,
+
+            -readability-identifier-naming,
+            -readability-named-parameter
             ",
     "CheckOptions": [
         {
@@ -36,20 +38,12 @@
             "value": "lower_case",
         },
         {
-            "key": "readability-identifier-naming.FunctionCase",
-            "value": "lower_case",
-        },
-        {
             "key": "readability-identifier-naming.GlobalConstantCase",
             "value": "camelBack",
         },
         {
             "key": "readability-identifier-naming.GlobalVariableCase",
             "value": "camelBack",
-        },
-        {
-            "key": "readability-identifier-naming.NamespaceCase",
-            "value": "lower_case",
         },
         {
             "key": "readability-identifier-naming.ParameterCase",

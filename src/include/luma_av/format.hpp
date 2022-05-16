@@ -18,6 +18,7 @@ extern "C" {
 #include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/detail/ranges_config.hpp>
 
 namespace luma_av {
 
@@ -296,7 +297,8 @@ class format_context {
             if (ret < 0) {
                 return errc{ret};
             }
-            streams_infos_.insert_or_assign(type, StreamInfo{ret, codec});
+            streams_infos_.insert_or_assign(
+                type, StreamInfo{static_cast<size_t>(ret), codec});
             return luma_av::outcome::success();
         }
         bool Contains(AVMediaType type) noexcept {
@@ -463,6 +465,7 @@ class Reader {
 
 };
 
+#ifdef LUMA_AV_ENABLE_RANGES
 namespace detail {
 // i dont understand why these specific concepts
 template <std::ranges::view R>
@@ -655,6 +658,8 @@ inline const auto read_input_view = detail::input_reader_view_fn{};
 namespace views {
 inline const auto read_input = read_input_view;
 } // views
+
+#endif  // LUMA_AV_ENABLE_RANGES
 
 
 

@@ -41,17 +41,17 @@ TEST(codec, encode_vector) {
 }
 
 TEST(codec, encode_array) {
-    std::array<AVFrame*, 5> frames; 
+  std::array<AVFrame*, 5> frames{};
 
-    auto enc = DefaultEncoder("h264").value();
+  auto enc = DefaultEncoder("h264").value();
 
-    std::vector<Packet> packets;
-    packets.reserve(5);
+  std::vector<Packet> packets;
+  packets.reserve(5);
 
-    Encode(enc, frames, std::back_inserter(packets)).value();
-    Drain(enc, std::back_inserter(packets)).value();
+  Encode(enc, frames, std::back_inserter(packets)).value();
+  Drain(enc, std::back_inserter(packets)).value();
 }
-
+#ifdef  LUMA_AV_ENABLE_RANGES
 TEST(codec, encode_single) {
     AVFrame* frame = nullptr;
 
@@ -65,38 +65,38 @@ TEST(codec, encode_single) {
 }
 
 TEST(codec, transcode_ranges) {
-    std::array<AVPacket*, 5> pkts; 
+  std::array<AVPacket*, 5> pkts{};
 
-    auto dec = DefaultDecoder("h264").value();
-    auto enc = DefaultEncoder("h264").value();
+  auto dec = DefaultDecoder("h264").value();
+  auto enc = DefaultEncoder("h264").value();
 
-    std::vector<Packet> out_pkts;
-    out_pkts.reserve(5);
+  std::vector<Packet> out_pkts;
+  out_pkts.reserve(5);
 
-    for (auto const& pkt : pkts | decode_view(dec) | encode_view(enc)) {
-        if (pkt) {
-            out_pkts.push_back(Packet::make(*pkt.value()).value());
-        } else if (pkt.error().value() == AVERROR(EAGAIN)) {
-            continue;
-        } else {
-            throw std::system_error{pkt.error()};
-        }
+  for (auto const& pkt : pkts | decode_view(dec) | encode_view(enc)) {
+    if (pkt) {
+      out_pkts.push_back(Packet::make(*pkt.value()).value());
+    } else if (pkt.error().value() == AVERROR(EAGAIN)) {
+      continue;
+    } else {
+      throw std::system_error{pkt.error()};
+    }
     }
 }
 
 TEST(codec, transcode_functions) {
-    std::array<AVPacket*, 5> pkts; 
+  std::array<AVPacket*, 5> pkts{};
 
-    auto dec = DefaultDecoder("h264").value();
-    auto enc = DefaultEncoder("h264").value();
+  auto dec = DefaultDecoder("h264").value();
+  auto enc = DefaultEncoder("h264").value();
 
-    std::vector<Frame> out_frames;
-    out_frames.reserve(5);
-    Decode(dec, pkts, std::back_inserter(out_frames)).value();
+  std::vector<Frame> out_frames;
+  out_frames.reserve(5);
+  Decode(dec, pkts, std::back_inserter(out_frames)).value();
 
-    std::vector<Packet> out_pkts;
-    out_pkts.reserve(5);
-    Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
+  std::vector<Packet> out_pkts;
+  out_pkts.reserve(5);
+  Encode(enc, out_frames, std::back_inserter(out_pkts)).value();
 }
 
 
@@ -445,3 +445,5 @@ TEST(codec, ParseyUwU) {
         out_pkts.push_back(std::move(pkt));
     }
 }
+
+#endif  // LUMA_AV_ENABLE_RANGES

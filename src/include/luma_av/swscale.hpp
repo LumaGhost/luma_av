@@ -14,6 +14,7 @@ extern "C" {
 #include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/detail/ranges_config.hpp>
 
 
 namespace luma_av {
@@ -149,6 +150,8 @@ struct ScaleClosure {
         return sws.Scale(frame);
     }
 };
+
+#ifdef LUMA_AV_ENABLE_RANGES
 const auto scale_view = [](ScaleSession& sws){
     return std::views::transform([&](const auto& frame) {
         return ScaleClosure{sws}(frame);
@@ -158,7 +161,7 @@ const auto scale_view = [](ScaleSession& sws){
 namespace views {
 const auto scale = scale_view;
 } // views
-
+#endif  // LUMA_AV_ENABLE_RANGES
 
 
 } // luma_av

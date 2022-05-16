@@ -19,6 +19,7 @@ extern "C" {
 #include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/detail/ranges_config.hpp>
 
 namespace luma_av {
 
@@ -254,6 +255,7 @@ struct AddFrameClosure {
     }
 };
 
+#ifdef LUMA_AV_ENABLE_RANGES 
 
 // i dont understand why these specific concepts
 template <std::ranges::view R>
@@ -477,14 +479,17 @@ auto operator()(FilterSession& filt) const {
 }
 };
 
+#endif  // LUMA_AV_ENABLE_RANGES
+
 } // detail
 
+#ifdef LUMA_AV_ENABLE_RANGES
 inline const auto filter_graph_view = detail::filter_graph_view_impl_fn{};
 
 namespace views {
 inline const auto filter_graph = filter_graph_view;
-
 } // views
+#endif  // LUMA_AV_ENABLE_RANGES
 
 } // luma_av
 

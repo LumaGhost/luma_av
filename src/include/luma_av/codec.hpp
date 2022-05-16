@@ -15,6 +15,7 @@ extern "C" {
 #include <luma_av/frame.hpp>
 #include <luma_av/packet.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/detail/ranges_config.hpp>
 
 /*
 https://ffmpeg.org/doxygen/3.2/group__lavc__decoding.html#ga8f5b632a03ce83ac8e025894b1fc307a

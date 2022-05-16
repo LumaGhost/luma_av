@@ -15,9 +15,6 @@ target_link_libraries(luma_av PUBLIC
 
 target_sources(luma_av PRIVATE codec.cpp)
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  target_compile_definitions(luma_av PUBLIC LUMA_AV_ENABLE_RANGES)
-endif()
 
 
 add_library(luma_av::luma_av ALIAS luma_av)

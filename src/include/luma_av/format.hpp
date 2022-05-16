@@ -18,6 +18,7 @@ extern "C" {
 #include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>
+#include <luma_av/detail/ranges_config.hpp>
 
 namespace luma_av {
 

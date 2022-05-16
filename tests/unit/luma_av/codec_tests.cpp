@@ -51,7 +51,7 @@ TEST(codec, encode_array) {
   Encode(enc, frames, std::back_inserter(packets)).value();
   Drain(enc, std::back_inserter(packets)).value();
 }
-
+#ifdef  LUMA_AV_ENABLE_RANGES
 TEST(codec, encode_single) {
     AVFrame* frame = nullptr;
 
@@ -445,3 +445,5 @@ TEST(codec, ParseyUwU) {
         out_pkts.push_back(std::move(pkt));
     }
 }
+
+#endif  // LUMA_AV_ENABLE_RANGES

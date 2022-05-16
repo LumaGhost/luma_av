@@ -496,6 +496,7 @@ struct EncodeInterfaceImpl {
     // they already have the same .start_draining()
 };
 
+#ifdef LUMA_AV_ENABLE_RANGES
 // i dont understand why these specific concepts
 template <class EncDecInterface, std::ranges::view R>
 class encdec_view_impl : public std::ranges::view_interface<encdec_view_impl<EncDecInterface, R>> {
@@ -774,9 +775,11 @@ auto operator()(coder_type& dec) const {
             encdec_view_impl_fn<EncDec>>{encdec_view_impl_fn<EncDec>{}, dec};
 }
 };
+#endif  // LUMA_AV_ENABLE_RANGES
 
 } // detail
 
+#ifdef LUMA_AV_ENABLE_RANGES
 inline const auto decode_view = detail::encdec_view_impl_fn<detail::DecodeInterfaceImpl>{};
 inline const auto encode_view = detail::encdec_view_impl_fn<detail::EncodeInterfaceImpl>{};
 
@@ -975,6 +978,8 @@ inline const auto drain_view = detail::drain_view_fn{};
 namespace views {
 inline const auto drain = drain_view;
 } // views
+
+#endif  // LUMA_AV_ENABLE_RANGES
 
 } // luma_av
 

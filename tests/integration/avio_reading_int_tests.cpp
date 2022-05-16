@@ -1,5 +1,5 @@
 
-
+#ifdef  LUMA_AV_ENABLE_RANGES
 // example based on https://ffmpeg.org/doxygen/trunk/avio_reading_8c-example.html
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -188,3 +188,4 @@ TEST(AVIOreadTests, file_map) {
   ASSERT_EQ(map_buff.size(), buffer_size);
 }
 
+#endif  // LUMA_AV_ENABLE_RANGES

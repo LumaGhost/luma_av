@@ -464,6 +464,7 @@ class Reader {
 
 };
 
+#ifdef LUMA_AV_ENABLE_RANGES
 namespace detail {
 // i dont understand why these specific concepts
 template <std::ranges::view R>
@@ -656,6 +657,8 @@ inline const auto read_input_view = detail::input_reader_view_fn{};
 namespace views {
 inline const auto read_input = read_input_view;
 } // views
+
+#endif  // LUMA_AV_ENABLE_RANGES
 
 
 

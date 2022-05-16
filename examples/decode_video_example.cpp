@@ -1,5 +1,5 @@
 // example based on https://ffmpeg.org/doxygen/trunk/decode_video_8c-example.html
-
+#ifdef  LUMA_AV_ENABLE_RANGES
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -242,3 +242,4 @@ TEST(DecodeVideoExample, FullFFmpegExample)
     av_packet_free(&pkt);
 }
 // NOLINTEND
+#endif  // LUMA_AV_ENABLE_RANGES

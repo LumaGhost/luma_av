@@ -25,6 +25,8 @@
  *
  * @example decode_video.c
  */
+
+#ifdef  LUMA_AV_ENABLE_RANGES
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -299,3 +301,5 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
     }
     ASSERT_FALSE(parsed.empty());
 }
+
+#endif  // LUMA_AV_ENABLE_RANGES

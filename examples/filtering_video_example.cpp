@@ -1,5 +1,5 @@
 // example based on https://ffmpeg.org/doxygen/trunk/filtering_video_8c-example.html
-
+#ifdef  LUMA_AV_ENABLE_RANGES
 // NOLINTBEGIN
 #define _XOPEN_SOURCE 600 /* for usleep */
 #include <unistd.h>
@@ -334,3 +334,4 @@ end:
     }
 }
 // NOLINTEND
+#endif  // LUMA_AV_ENABLE_RANGES

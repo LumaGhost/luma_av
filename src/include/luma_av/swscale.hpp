@@ -149,6 +149,8 @@ struct ScaleClosure {
         return sws.Scale(frame);
     }
 };
+
+#ifdef LUMA_AV_ENABLE_RANGES
 const auto scale_view = [](ScaleSession& sws){
     return std::views::transform([&](const auto& frame) {
         return ScaleClosure{sws}(frame);
@@ -158,7 +160,7 @@ const auto scale_view = [](ScaleSession& sws){
 namespace views {
 const auto scale = scale_view;
 } // views
-
+#endif  // LUMA_AV_ENABLE_RANGES
 
 
 } // luma_av

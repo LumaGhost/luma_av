@@ -53,8 +53,9 @@ static void LumaAVReadExample() {
             [bd = BufferData{map_buff.data(), map_buff.size()}] 
             (uint8_t *buf, int buf_size) mutable -> int {
         buf_size = FFMIN(buf_size, bd.size);
-        if (!buf_size)
-            return AVERROR_EOF;
+        if (!buf_size) {
+          return AVERROR_EOF;
+        }
         luma_output << bd.size << "\n";
         /* copy internal buffer data to buf */
         memcpy(buf, bd.ptr, buf_size);
@@ -175,13 +176,15 @@ TEST(AVIOreadTests, FfmpegCompare) {
 verify that our MappedFileBuff aggrees with av_file_map on the size of the file
 */
 TEST(AVIOreadTests, file_map) {
-    uint8_t *buffer = NULL;
-    size_t buffer_size;
-    const auto input_filename = luma_av::cstr_view{kFileName};
-    ASSERT_EQ(av_file_map(input_filename.c_str(), &buffer, &buffer_size, 0, NULL), 0);
-    av_file_unmap(buffer, buffer_size);
-    
-    const auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
-    ASSERT_EQ(map_buff.size(), buffer_size);
+  uint8_t* buffer = nullptr;
+  size_t buffer_size;
+  const auto input_filename = luma_av::cstr_view{kFileName};
+  ASSERT_EQ(
+      av_file_map(input_filename.c_str(), &buffer, &buffer_size, 0, nullptr),
+      0);
+  av_file_unmap(buffer, buffer_size);
+
+  const auto map_buff = luma_av::MappedFileBuff::make(input_filename).value();
+  ASSERT_EQ(map_buff.size(), buffer_size);
 }
 

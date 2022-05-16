@@ -62,7 +62,8 @@ std::pair<result<std::span<const uint8_t>>, std::span<const uint8_t>> ParseStep(
     } else if (!(data_out) or (size_out == 0)) {
         return {errc::parser_hungry_uwu, in_buff.subspan(ret)};
     } else {
-        return {std::span<uint8_t>{data_out, size_out}, in_buff.subspan(ret)};
+      return {std::span<uint8_t>{data_out, static_cast<std::size_t>(size_out)},
+              in_buff.subspan(ret)};
     }
 }
 std::pair<result<void>, std::span<const uint8_t>> ParseStep(Packet& out_pkt, 

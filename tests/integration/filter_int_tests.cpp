@@ -1,9 +1,10 @@
 // example based on https://ffmpeg.org/doxygen/trunk/filtering_video_8c-example.html
 
-#define _XOPEN_SOURCE 600 /* for usleep */
+#define XOPEN_SOURCE 600 /* for usleep */
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
+
+#include <cstdio>
+#include <cstdlib>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -61,7 +62,7 @@ static std::string LumaAVFilterVideoEx() {
     fctx.FindStreamInfo().value();
     fctx.FindBestStream(AVMEDIA_TYPE_VIDEO).value();
     const auto vid_idx = fctx.stream_index(AVMEDIA_TYPE_VIDEO);
-    const auto vid_codec = fctx.codec(AVMEDIA_TYPE_VIDEO);
+    const auto* const vid_codec = fctx.codec(AVMEDIA_TYPE_VIDEO);
     auto dec_ctx = luma_av::CodecContext::make(vid_codec, fctx.stream(vid_idx)->codecpar).value();
     const auto time_base = fctx.stream(vid_idx)->time_base;
 
@@ -71,10 +72,11 @@ static std::string LumaAVFilterVideoEx() {
             .PixFormat(dec_ctx.get()->pix_fmt)
             .AspectRatio(dec_ctx.get()->sample_aspect_ratio)
             .TimeBase(time_base);
-    const auto src_filt = luma_av::FindFilter("buffer"_cstr).value();
+    const auto* const src_filt = luma_av::FindFilter("buffer"_cstr).value();
     filter_graph.CreateSrcFilter(src_filt, "in"_cstr, filter_args).value();
 
-    const auto sink_filt = luma_av::FindFilter("buffersink"_cstr).value();
+    const auto* const sink_filt =
+        luma_av::FindFilter("buffersink"_cstr).value();
     filter_graph.CreateSinkFilter(sink_filt, "out"_cstr).value();
     
     std::vector<AVPixelFormat> pix_fmts{AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE};
@@ -91,9 +93,9 @@ static std::string LumaAVFilterVideoEx() {
     const auto is_video = [&](auto const& pkt_res){
         if(pkt_res.has_value()) {
             return pkt_res.value()->get()->stream_index == vid_idx;
-        } else {
-            return true;
         }
+        return true;
+       
     };
     const auto set_frame_pts = [](const auto& frame_res) -> std::decay_t<decltype(frame_res)> {
         LUMA_AV_OUTCOME_TRY(frame, frame_res);

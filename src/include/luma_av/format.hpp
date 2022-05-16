@@ -296,7 +296,8 @@ class format_context {
             if (ret < 0) {
                 return errc{ret};
             }
-            streams_infos_.insert_or_assign(type, StreamInfo{ret, codec});
+            streams_infos_.insert_or_assign(
+                type, StreamInfo{static_cast<size_t>(ret), codec});
             return luma_av::outcome::success();
         }
         bool Contains(AVMediaType type) noexcept {

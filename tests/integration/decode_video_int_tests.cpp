@@ -25,9 +25,9 @@
  *
  * @example decode_video.c
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
@@ -46,7 +46,7 @@ static constexpr auto kFrameCompCount = int{10};
 static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
     auto decoder = luma_av::Decoder::make(AV_CODEC_ID_MPEG1VIDEO).value();
-    auto filename    = kFileName;
+    const auto* filename = kFileName;
     FILE* f = fopen(filename, "rb");
     if (!f) {
         fprintf(stderr, "Could not open %s\n", filename);
@@ -72,8 +72,9 @@ static std::vector<std::vector<uint8_t>> LumaAvDecodeVideo() {
     while (!feof(f)) {
         /* read raw data from the input file */
         auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
-        if (!data_size)
-            break;
+        if (!data_size) {
+          break;
+        }
         std::span<const uint8_t> data(inbuf, data_size);
         // this is a bug idk why i need to make a vector
         //  a single view should work? i.e. std::views::single(data);
@@ -224,7 +225,7 @@ note: packet free'd first
 */
 TEST(DecodeVideoIntegration, ParserParseOne) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
-    auto filename    = kFileName;
+    const auto* filename = kFileName;
     // NOLINTBEGIN
     FILE* f = fopen(filename, "rb");
     if (!f) {
@@ -242,8 +243,9 @@ TEST(DecodeVideoIntegration, ParserParseOne) {
     while (!feof(f)) {
         /* read raw data from the input file */
         auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
-        if (!data_size)
-            break;
+        if (!data_size) {
+          break;
+        }
         std::span<const uint8_t> data(inbuf, data_size);
         // this is a bug idk why i need to make a vector
         //  a single view should work? i.e. std::views::single(data);
@@ -265,7 +267,7 @@ note: parser free'd first
 */
 TEST(DecodeVideoIntegration, ParserFullParse) {
     auto parser = luma_av::Parser::make(AV_CODEC_ID_MPEG1VIDEO).value();
-    auto filename    = kFileName;
+    const auto* filename = kFileName;
     FILE* f = fopen(filename, "rb");
     if (!f) {
         fprintf(stderr, "Could not open %s\n", filename);
@@ -282,8 +284,9 @@ TEST(DecodeVideoIntegration, ParserFullParse) {
     while (!feof(f)) {
         /* read raw data from the input file */
         auto data_size = fread(inbuf, 1, INBUF_SIZE, f);
-        if (!data_size)
-            break;
+        if (!data_size) {
+          break;
+        }
         std::span<const uint8_t> data(inbuf, data_size);
         // this is a bug idk why i need to make a vector
         //  a single view should work? i.e. std::views::single(data);

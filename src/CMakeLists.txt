@@ -13,7 +13,7 @@ target_link_libraries(luma_av PUBLIC
     ffmpeg::ffmpeg
 )
 
-target_sources(luma_av PRIVATE codec.cpp)
+target_sources(luma_av PRIVATE codec.cpp format.cpp)
 
 
 

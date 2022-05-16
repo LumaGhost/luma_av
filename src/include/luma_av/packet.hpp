@@ -8,6 +8,7 @@ extern "C" {
 #include <memory>
 
 #include <luma_av/result.hpp>
+#include <luma_av/util.hpp>
 
 // https://ffmpeg.org/doxygen/3.2/group__lavc__packet.html
 

@@ -12,6 +12,8 @@ extern "C" {
 }
 
 #include <map>
+#include <span>
+#include <ranges>
 
 #include <luma_av/packet.hpp>
 // we only need the buffer but its not in its own header yet

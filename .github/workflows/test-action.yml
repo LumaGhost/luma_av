@@ -1,0 +1,11 @@
+name: GitHub Actions Demo
+on:
+  pr:
+    branches:
+      - gh-actions-test
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    container: gcc:12
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."

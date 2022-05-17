@@ -80,3 +80,4 @@ not quite ready for other developers but thats something i want in the future (:
 ### Closing
 
 hopefully this readme at least answered some questions about what this library aims to accomplish, and how it plans to accomplish that. and hopefully enough abt how the libary works to get a feel for whether or not you are interested in using it (: feedback on the readme is especially appreciated!
+

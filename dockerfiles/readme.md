@@ -87,19 +87,3 @@ you can also add a task to your vscode task.json using the following as an examp
 
 note: there may be a better way, but I ususally have to ask vscode to rebuild the container in order for task.json changes to take affect. 
 
-
-### gcc_dev (deprecated)
-
-The same idea as clang_dev but much older compiler versions and also no profile for building for clang. This setup is deprecated and is going to be removed once we're fully comfortable with clang_dev (:
-
-#### Commands:
-
-Install Dependencies:
-```
-conan install . -if build --build missing -s build_type=Debug
-```
-
-Build:
-```
-conan build . -bf build
-```

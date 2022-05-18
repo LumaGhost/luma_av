@@ -25,14 +25,14 @@ RUN pip3 install conan && \
 RUN conan profile new clang-stdcxx --detect && \
     conan profile update settings.compiler.libcxx=libstdc++11 clang-stdcxx && \
     conan profile update settings.compiler=clang clang-stdcxx && \
-    conan profile update settings.compiler.version=15 clang-stdcxx && \
+    conan profile update settings.compiler.version=14 clang-stdcxx && \
     conan profile update env.CC=/llvm-project/build/bin/clang clang-stdcxx && \
     conan profile update env.CXX=/llvm-project/build/bin/clang++ clang-stdcxx
 
 RUN conan profile new clang-libcxx --detect && \
     conan profile update settings.compiler.libcxx=libc++ clang-libcxx  && \
     conan profile update settings.compiler=clang clang-libcxx  && \
-    conan profile update settings.compiler.version=15 clang-libcxx  && \
+    conan profile update settings.compiler.version=14 clang-libcxx  && \
     conan profile update env.CC=/llvm-project/build/bin/clang clang-libcxx  && \
     conan profile update env.CXX=/llvm-project/build/bin/clang++ clang-libcxx 
 

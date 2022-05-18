@@ -9,7 +9,6 @@ find_package(GTest REQUIRED)
 add_executable(luma_av_unit 
                luma/av/detail/unique_or_null_tests.cpp
                luma_av/frame_tests.cpp
-               luma_av/codec_tests.cpp
                luma_av/result_tests.cpp
 )
 target_compile_features(luma_av_unit PUBLIC cxx_std_20)

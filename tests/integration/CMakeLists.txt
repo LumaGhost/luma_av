@@ -7,9 +7,10 @@ endif()
 find_package(GTest REQUIRED)
 
 add_executable(luma_av_integration 
-               avio_reading_int_tests.cpp 
-               filter_int_tests.cpp
-               decode_video_int_tests.cpp
+               ffmpeg_compare/avio_reading_ffmpeg_ex.cpp 
+               ffmpeg_compare/decode_video_ffmpeg_ex.cpp
+               ffmpeg_compare/filter_video_ffmpeg_ex.cpp
+               luma_av/codec_tests.cpp
 )
 target_compile_features(luma_av_integration PUBLIC cxx_std_20)
 

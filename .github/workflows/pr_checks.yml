@@ -1,0 +1,36 @@
+name: luma_av PR Checks
+on:
+  pull_request:
+    branches:
+      - luma/ci_updates
+jobs:
+  Build and Test (gcc):
+    runs-on: ubuntu-latest
+    container: gcc:12
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: conan install (Release)
+        run: conan install . -if build --build missing -s build_type=Release
+      - name: build
+        run: conan build . -bf build
+      - name: run unit tests
+        run: todo
+        
+  Clang Tooling:
+    runs-on: ubuntu-latest
+    container: clang:14
+    steps:
+      - uses: actions/checkout@v3
+          with:
+            ref: ${{ github.event.pull_request.head.sha }}
+      - name: conan install (Release)
+        run: conan install . --profile clang-libcxx -if build --build missing -s build_type=Release
+      - name: build
+        run: conan build . -bf build
+      - name: clang-tidy (diff)
+        run: python3 /llvm-install/scripts/clang-tidy-diff.py -clang-tidy-binary /llvm-install/bin/clang-tidy
+        working-directory: ./build
+      - name: run unit tests
+        run: todo

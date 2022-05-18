@@ -18,7 +18,7 @@ jobs:
       - name: build
         run: conan build . -bf build
       - name: run unit tests
-        run: todo
+        run: ./build/bin/luma_av_unit 
         
   Clang Tooling:
     runs-on: ubuntu-latest
@@ -37,4 +37,4 @@ jobs:
         run: python3 /llvm-install/scripts/clang-tidy-diff.py -clang-tidy-binary /llvm-install/bin/clang-tidy
         working-directory: ./build
       - name: run unit tests
-        run: todo
+        run: ./build/bin/luma_av_unit

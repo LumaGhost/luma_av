@@ -6,7 +6,7 @@ on:
 jobs:
   Build and Test (gcc):
     runs-on: ubuntu-latest
-    container: gcc:12
+    container: lumauwu/luma_gcc_ci:test
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -22,7 +22,7 @@ jobs:
         
   Clang Tooling:
     runs-on: ubuntu-latest
-    container: clang:14
+    container: lumauwu/luma_clang_ci:test
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -38,3 +38,9 @@ jobs:
         working-directory: ./build
       - name: run unit tests
         run: ./build/bin/luma_av_unit
+      - name: apply clang-format (diff)
+        run: python3 /llvm-install/scripts/clang-format-diff.py -sort-includes -binary /llvm-install/bin/clang-format
+      - name: commit format changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: ['src/', 'tests/', 'examples/']

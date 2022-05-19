@@ -6,7 +6,9 @@ on:
 jobs:
   build_and_test_with_gcc:
     runs-on: ubuntu-latest
-    container: lumauwu/luma_gcc_ci:test
+    container: 
+      image: lumauwu/luma_gcc_ci:test
+      options: --workdir /
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -22,7 +24,9 @@ jobs:
         
   clang_tooling:
     runs-on: ubuntu-latest
-    container: lumauwu/luma_clang_ci:test
+    container: 
+      image: lumauwu/luma_clang_ci:test
+      options: --workdir /
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3

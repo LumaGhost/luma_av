@@ -4,7 +4,7 @@ on:
     branches:
       - luma/ci_updates
 jobs:
-  Build and Test (gcc):
+  build_and_test_with_gcc:
     runs-on: ubuntu-latest
     container: lumauwu/luma_gcc_ci:test
     timeout-minutes: 10
@@ -20,7 +20,7 @@ jobs:
       - name: run_unit_tests
         run: ./build/bin/luma_av_unit 
         
-  Clang Tooling:
+  clang_tooling:
     runs-on: ubuntu-latest
     container: lumauwu/luma_clang_ci:test
     timeout-minutes: 10

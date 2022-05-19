@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: lumauwu/luma_gcc_ci:test
-      options: --user root
+      options: -e CONAN_USER_HOME=/root
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: lumauwu/luma_clang_ci:test
-      options: --user root --workdir /
+      options: -e CONAN_USER_HOME=/root
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3

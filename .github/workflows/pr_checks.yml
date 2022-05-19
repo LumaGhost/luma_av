@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: lumauwu/luma_gcc_ci:test
-      options: --workdir /
+      options: --user root
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: lumauwu/luma_clang_ci:test
-      options: --workdir /
+      options: --privileged
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3

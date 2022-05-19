@@ -38,7 +38,7 @@ Add the following to you devcontainer.json
 Add the following to your settings.json (assuming you're using the clang_dev image and ./build as your build folder)
 
 ```
-"clangd.path":"/llvm-project/build/bin/clangd"
+"clangd.path":"/llvm-install/bin/clangd"
 "clangd.arguments": ["-compile-commands-dir=/workspaces/luma_av/build"]
 ```
 Note: clangd will work for some things but probably wont be accurate until we can fully compile the project with clang
@@ -51,6 +51,12 @@ formatting with vscode "just works" with the c++ extension in vscode due to the 
 
 unfortunately, I think at this time the vscode c++ extension is using its own copy of clang format and not the newer version in the image. this is something we'll ideally address in the future but isnt a priority for now since the formatting still works. 
 
+alternatively, you can use the following command to format your changes (git diff) automatically using the clang format binary in the image.
+
+```
+python3 /llvm-install/scripts/clang-format-diff.py -sort-includes -binary /llvm-install/bin/clang-format
+```
+
 #### Running clang-tidy
 
 these commands use the install location for the clang_dev image, but they can of course be adapted for other install locations
@@ -58,14 +64,14 @@ these commands use the install location for the clang_dev image, but they can of
 to run clang-tidy on the whole project run the following from the build folder (or wherever youve placed the compile commands json)
 
 ```
-python3 /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -clang-tidy-binary /llvm-project/build/bin/clang-tidy
+python3 /llvm-install/scripts/run-clang-tidy.py -clang-tidy-binary /llvm-install/bin/clang-tidy
 ```
 note: this command will run checks based on the .clang-tidy file in the project root. 
 
 to automatically apply fixes, add the following to your command. this will also apply our formatting to any code thats auto fixed.
 
 ```
--fix -clang-apply-replacements-binary /llvm-project/build/bin/clang-apply-replacements -format
+-fix -clang-apply-replacements-binary /llvm-install/bin/clang-apply-replacements -format
 ```
 
 see `run-clang-tidy.py --help` and https://clang.llvm.org/extra/clang-tidy/ for more info (: 
@@ -77,7 +83,7 @@ you can also add a task to your vscode task.json using the following as an examp
 {
             "label": "clang-tidy",
             "type": "shell",
-            "command": "python3 /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py -clang-tidy-binary /llvm-project/build/bin/clang-tidy",
+            "command": "python3 /llvm-install/scripts/run-clang-tidy.py -clang-tidy-binary /llvm-install/bin/clang-tidy",
             "options": {
                 "cwd": "${workspaceRoot}/build"
             },

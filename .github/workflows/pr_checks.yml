@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: conan_install_release
+      - name: conan install (Release)
         timeout-minutes: 2
         run: conan install . -if build --build missing -s build_type=Release
       - name: build
         run: conan build . -bf build
-      - name: run_unit_tests
+      - name: run unit tests
         run: ./build/bin/luma_av_unit 
         
   clang_tooling:
@@ -28,19 +28,19 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: conan_install_release
+      - name: conan install (Release)
         timeout-minutes: 2
         run: conan install . --profile clang-libcxx -if build --build missing -s build_type=Release
       - name: build
         run: conan build . -bf build
-      - name: clang-tidy-diff
+      - name: clang-tidy (diff)
         run: python3 /llvm-install/scripts/clang-tidy-diff.py -clang-tidy-binary /llvm-install/bin/clang-tidy
         working-directory: ./build
-      - name: run_unit_tests
+      - name: run unit tests
         run: ./build/bin/luma_av_unit
-      - name: apply_clang-format-diff
+      - name: apply clang-format (diff)
         run: python3 /llvm-install/scripts/clang-format-diff.py -sort-includes -binary /llvm-install/bin/clang-format
-      - name: commit_format_changes
+      - name: commit format changes
         uses: EndBug/add-and-commit@v9
         with:
           add: "['src/', 'tests/', 'examples/']"

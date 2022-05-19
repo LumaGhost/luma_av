@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: lumauwu/luma_clang_ci:test
-      options: --privileged
+      options: --user root --workdir /
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3

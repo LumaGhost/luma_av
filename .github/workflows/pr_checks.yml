@@ -25,7 +25,7 @@ jobs:
   clang_tooling:
     runs-on: ubuntu-latest
     container: 
-      image: lumauwu/luma_clang_ci:test
+      image: lumauwu/luma_clang_ci:test-r1
       options: -e CONAN_USER_HOME=/root
     timeout-minutes: 10
     steps:

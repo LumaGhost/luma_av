@@ -13,7 +13,7 @@ RUN git clone https://github.com/llvm/llvm-project.git && \
     cmake -S llvm -B build -G "Ninja" -DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi;clang-tools-extra;compiler-rt;lld" -DCMAKE_BUILD_TYPE="Release" && \
     cmake --build build && \
     cmake --install build --prefix /llvm-install/ && \
-    mkdir /llvm-project/scripts && \
+    mkdir /llvm-install/scripts && \
     cp /llvm-project/clang-tools-extra/clang-tidy/tool/run-clang-tidy.py /llvm-install/scripts/run-clang-tidy.py && \
     cp /llvm-project/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py /llvm-install/scripts/clang-tidy-diff.py && \
     cp /llvm-project/clang/tools/clang-format/clang-format-diff.py /llvm-install/scripts/clang-format-diff.py && \

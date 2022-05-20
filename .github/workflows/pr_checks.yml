@@ -34,7 +34,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: conan install (Release)
         timeout-minutes: 2
-        run: conan install . --profile clang-libcxx -if build --build missing -s build_type=Release
+        run: conan install . -pr:b clang-libcxx -pr:h clang-libcxx -if build --build missing -s build_type=Release
       - name: build
         run: conan build . -bf build
       - name: clang-tidy (diff)

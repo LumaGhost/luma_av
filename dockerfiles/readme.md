@@ -15,7 +15,7 @@ if you are familiar with conan feel free to use your own commands (:
 
 Install Dependencies:
 ```
-conan install . --profile clang-libcxx -if build --build missing -s build_type=Debug
+conan install . -pr:b clang-libcxx -pr:h clang-libcxx  -if build --build missing -s build_type=Debug
 ```
 note: you can omit the profile argument to build with gcc instead
 

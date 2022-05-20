@@ -18,7 +18,7 @@ class LumaAvConan(ConanFile):
         "ffmpeg:with_libx265": False,
         "gtest:build_gmock": False
     }
-    generators = "cmake_find_package"
+    generators = "CMakeToolchain", "CMakeDeps"
     exports_sources = "src/*", "test/*", "CMakeLists.txt"
 
     def requirements(self):
@@ -28,6 +28,7 @@ class LumaAvConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
+        cmake.definitions["CMAKE_TOOLCHAIN_FILE"] = "conan_toolchain.cmake"
         cmake.configure()
         cmake.build()
 

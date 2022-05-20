@@ -34,7 +34,7 @@ RUN conan profile new clang-libcxx --detect && \
 ADD conanfile.py /docker_conan_install/
 ENV CONAN_SYSREQUIRES_SUDO=False
 ENV CONAN_SYSREQUIRES_MODE=enabled
-RUN conan install /docker_conan_install/ --profile clang-libcxx -if build --build missing -s build_type=Release && \
+RUN conan install /docker_conan_install/ -pr:b clang-libcxx -pr:h clang-libcxx -if build --build missing -s build_type=Release && \
     rm -rf /build/
 RUN rm -rf /docker_conan_install/
 

@@ -29,7 +29,8 @@ RUN conan profile new clang-libcxx --detect && \
     conan profile update settings.compiler=clang clang-libcxx  && \
     conan profile update settings.compiler.version=14 clang-libcxx  && \
     conan profile update env.CC=/llvm-install/bin/clang clang-libcxx  && \
-    conan profile update env.CXX=/llvm-install/bin/clang++ clang-libcxx 
+    conan profile update env.CXX=/llvm-install/bin/clang++ clang-libcxx  && \
+    conan profile update env.LDFLAGS="-rpath /llvm-install/lib" clang-libcxx
 
 ADD conanfile.py /docker_conan_install/
 ENV CONAN_SYSREQUIRES_SUDO=False

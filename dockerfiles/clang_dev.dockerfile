@@ -1,4 +1,4 @@
-FROM lumauwu/luma_clang_ci:test-r2
+FROM lumauwu/luma_clang_ci:latest
 
 RUN apt-get install -y \
     gdb

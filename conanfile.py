@@ -18,7 +18,7 @@ class LumaAvConan(ConanFile):
         "ffmpeg:with_libx265": False,
         "gtest:build_gmock": False
     }
-    generators = "cmake", "cmake_find_package"
+    generators = "cmake_find_package"
     exports_sources = "src/*", "test/*", "CMakeLists.txt"
 
     def requirements(self):

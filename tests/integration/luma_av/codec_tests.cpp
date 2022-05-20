@@ -15,7 +15,9 @@
 #include <luma_av/parser.hpp>
 
 using namespace luma_av;
+#ifdef LUMA_AV_ENABLE_RANGES
 using namespace luma_av::views;
+#endif // LUMA_AV_ENABLE_RANGES
 using namespace luma_av_literals;
 
 static result<Decoder> DefaultDecoder(std::string const& codec_name) {

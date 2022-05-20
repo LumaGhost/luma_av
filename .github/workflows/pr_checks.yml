@@ -38,11 +38,11 @@ jobs:
       - name: build
         run: conan build . -bf build
       - name: clang-tidy (diff)
-        run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-tidy-diff.py -p1 -path ./build  -clang-tidy-binary /llvm-install/bin/clang-tidy
+        run: git diff -U0 --no-color --relative origin/main | python3 /llvm-install/scripts/clang-tidy-diff.py -p1 -path ./build  -clang-tidy-binary /llvm-install/bin/clang-tidy
       - name: run unit tests
         run: ./build/tests/unit/luma_av_unit
       - name: apply clang-format (diff)
-        run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
+        run: git diff -U0 --no-color --relative origin/main | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
       - name: commit format changes
         uses: EndBug/add-and-commit@v9
         with:

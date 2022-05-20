@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.10)
 project (luma_av VERSION 0.0.0)
 
-add_library(luma_av STATIC)
+add_library(luma_av)
 target_compile_features(luma_av PUBLIC cxx_std_20)
 target_include_directories(luma_av PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -13,7 +13,7 @@ target_link_libraries(luma_av PUBLIC
     ffmpeg::ffmpeg
 )
 
-target_sources(luma_av PRIVATE codec.cpp)
+target_sources(luma_av PRIVATE codec.cpp format.cpp)
 
 
 

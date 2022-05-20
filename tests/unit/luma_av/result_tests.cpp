@@ -32,7 +32,7 @@ TEST(result_unit, success) {
 TEST(result_unit, ffmpeg_code) {
   auto r = result<void>{errc{AVERROR_EOF}};
   ASSERT_FALSE(r);
-  ASSERT_THROW(r.value(), std::system_error);
+  ASSERT_DEATH(r.value(), "");
 }
 
 TEST(result_unit, ffmpeg_success) {

@@ -138,7 +138,7 @@ std::pair<result<void>, std::span<const uint8_t>> ParseAll(Parser& parser,
     
 }
 
-
+#ifdef LUMA_AV_ENABLE_RANGES
 namespace detail {
 
 template <std::ranges::view R>
@@ -381,6 +381,7 @@ inline const auto parse_packets_view = detail::parser_range_fn{};
 namespace views {
 inline const auto parse_packets = parse_packets_view;
 } // views
+#endif  // LUMA_AV_ENABLE_RANGES
 
 } // luma_av
 

@@ -5,9 +5,10 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
-#include <memory>
-
 #include <luma_av/result.hpp>
+#include <luma_av/util.hpp>
+#include <memory>
+#include <span>
 
 // https://ffmpeg.org/doxygen/3.2/group__lavc__packet.html
 

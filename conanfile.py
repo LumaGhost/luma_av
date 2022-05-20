@@ -12,24 +12,27 @@ class LumaAvConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False]}
     default_options = {
-        "shared": False,
+        "shared": True,
         "ffmpeg:with_opus": False,
         "ffmpeg:with_libalsa": False,
         "ffmpeg:with_libx265": False,
-        "gtest:build_gmock": False
+        "ffmpeg:with_libmp3lame": False,
+        "ffmpeg:with_pulse": False,
+        "ffmpeg:shared": True,
+        "gtest:build_gmock": False,
+        "gtest:shared": True,
     }
-    generators = "cmake", "cmake_find_package"
+    generators = "CMakeToolchain", "CMakeDeps"
     exports_sources = "src/*", "test/*", "CMakeLists.txt"
 
     def requirements(self):
         self.requires("outcome/2.1.5")
         self.requires("ffmpeg/4.4")
-        self.requires("zlib/1.2.11@conan/stable")
-        self.requires("bzip2/1.0.8@conan/stable")
-        self.requires("gtest/1.11.0")
+        self.requires("gtest/cci.20210126")
 
     def build(self):
         cmake = CMake(self)
+        cmake.definitions["CMAKE_TOOLCHAIN_FILE"] = "conan_toolchain.cmake"
         cmake.configure()
         cmake.build()
 

@@ -11,9 +11,10 @@ extern "C" {
 #include <libavutil/file.h>
 }
 
-#include <map>
-
 #include <luma_av/packet.hpp>
+#include <map>
+#include <ranges>
+#include <span>
 // we only need the buffer but its not in its own header yet
 #include <luma_av/frame.hpp>
 #include <luma_av/result.hpp>

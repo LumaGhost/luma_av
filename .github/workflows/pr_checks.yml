@@ -1,0 +1,51 @@
+name: luma_av PR Checks
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  build_and_test_with_gcc:
+    runs-on: ubuntu-latest
+    container: 
+      image: lumauwu/luma_gcc_ci:latest
+      options: -e CONAN_USER_HOME=/root
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: conan install (Release)
+        timeout-minutes: 2
+        run: conan install . -if build --build missing -s build_type=Release
+      - name: build
+        run: conan build . -bf build
+      - name: run unit tests
+        run: ./build/tests/unit/luma_av_unit 
+        
+  clang_tooling:
+    runs-on: ubuntu-latest
+    container: 
+      image: lumauwu/luma_clang_ci:latest
+      options: -e CONAN_USER_HOME=/root
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: conan install (Release)
+        timeout-minutes: 2
+        run: conan install . -pr:b clang-libcxx -pr:h clang-libcxx -if build --build missing -s build_type=Release
+      - name: build
+        run: conan build . -bf build
+      - name: clang-tidy (diff)
+        run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-tidy-diff.py -p1 -path ./build  -clang-tidy-binary /llvm-install/bin/clang-tidy
+      - name: run unit tests
+        run: ./build/tests/unit/luma_av_unit
+      - name: apply clang-format (diff)
+        run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
+      - name: commit format changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: "['src/', 'tests/', 'examples/']"

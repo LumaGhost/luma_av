@@ -6,6 +6,7 @@ extern "C" {
 }
 
 #include <memory>
+#include <span>
 
 #include <luma_av/result.hpp>
 #include <luma_av/util.hpp>

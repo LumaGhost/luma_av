@@ -76,6 +76,12 @@ to automatically apply fixes, add the following to your command. this will also 
 
 see `run-clang-tidy.py --help` and https://clang.llvm.org/extra/clang-tidy/ for more info (: 
 
+you can also run clang tidy on just a git diff. currently auto fixes arent supported with this method. 
+
+```
+git diff -U0 --no-color --relative origin/main | python3 /llvm-install/scripts/clang-tidy-diff.py -p1 -path ./build  -clang-tidy-binary /llvm-install/bin/clang-tidy
+```
+
 
 you can also add a task to your vscode task.json using the following as an example
 

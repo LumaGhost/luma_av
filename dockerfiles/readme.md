@@ -51,10 +51,10 @@ formatting with vscode "just works" with the c++ extension in vscode due to the 
 
 unfortunately, I think at this time the vscode c++ extension is using its own copy of clang format and not the newer version in the image. this is something we'll ideally address in the future but isnt a priority for now since the formatting still works. 
 
-alternatively, you can use the following command to format your changes (git diff) automatically using the clang format binary in the image.
+alternatively, you can use the clang-format-diff script in the image to format a git diff. the following command would format any changes on the current branch relative to main using the clang format binary in the image.
 
 ```
-python3 /llvm-install/scripts/clang-format-diff.py -sort-includes -binary /llvm-install/bin/clang-format
+git diff -U0 --no-color --relative origin/main | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
 ```
 
 #### Running clang-tidy

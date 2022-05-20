@@ -43,7 +43,7 @@ jobs:
       - name: run unit tests
         run: ./build/bin/luma_av_unit
       - name: apply clang-format (diff)
-        run: python3 /llvm-install/scripts/clang-format-diff.py -sort-includes -binary /llvm-install/bin/clang-format
+        run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
       - name: commit format changes
         uses: EndBug/add-and-commit@v9
         with:

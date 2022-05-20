@@ -6,21 +6,18 @@
 
 using namespace luma_av;
 
+/**
+memory safe construct and destruct
+*/
+TEST(frame_unit, default_ctor) { auto f = Frame::make().value(); }
 
-    /**
-    memory safe construct and destruct
-    */
-    TEST(frame_unit, default_ctor) {
-        auto f = Frame::make().value();
-    }
-
-    /**
-    memory safe move construct and destruct
-    */
-    TEST(frame_unit, default_move) {
-        auto f = Frame::make().value();
-        auto f2 = Frame{std::move(f)};
-    }
+/**
+memory safe move construct and destruct
+*/
+TEST(frame_unit, default_move) {
+  auto f = Frame::make().value();
+  auto f2 = Frame{std::move(f)};
+}
 
 // /**
 // memory safe construct, buffer aloc, and destruct

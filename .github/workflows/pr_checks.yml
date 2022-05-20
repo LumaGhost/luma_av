@@ -2,7 +2,7 @@ name: luma_av PR Checks
 on:
   pull_request:
     branches:
-      - luma/ci_updates
+      - main
 jobs:
   build_and_test_with_gcc:
     runs-on: ubuntu-latest

@@ -381,7 +381,7 @@ inline const auto parse_packets_view = detail::parser_range_fn{};
 namespace views {
 inline const auto parse_packets = parse_packets_view;
 } // views
-#endif // LUMA_AV_ENABLE_RANGES
+#endif  // LUMA_AV_ENABLE_RANGES
 
 } // luma_av
 

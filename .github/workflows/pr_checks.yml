@@ -17,10 +17,8 @@ jobs:
       - name: conan install (Release)
         timeout-minutes: 2
         run: conan install . -if build --build missing -s build_type=Release
-      - name: build
+      - name: build and test
         run: conan build . -bf build
-      - name: run unit tests
-        run: ./build/tests/unit/luma_av_unit 
         
   clang_tooling:
     runs-on: ubuntu-latest
@@ -37,12 +35,10 @@ jobs:
       - name: conan install (Release)
         timeout-minutes: 2
         run: conan install . -pr:b clang-libcxx -pr:h clang-libcxx -if build --build missing -s build_type=Release
-      - name: build
+      - name: build and test
         run: conan build . -bf build
       - name: clang-tidy (diff)
         run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-tidy-diff.py -p1 -path ./build  -clang-tidy-binary /llvm-install/bin/clang-tidy
-      - name: run unit tests
-        run: ./build/tests/unit/luma_av_unit
       - name: apply clang-format (diff)
         run: git diff -U0 --no-color --relative ${{ github.event.pull_request.base.sha }} | python3 /llvm-install/scripts/clang-format-diff.py -v -i -p1 -sort-includes -binary /llvm-install/bin/clang-format
       - name: commit format changes

@@ -1,8 +1,7 @@
 name: luma_av chron checks (main)
 on:
-  pull_request:
-    branches:
-      - main
+  schedule:
+    - cron:  '20 4 * * 6'
 jobs:
   build_and_test_with_gcc:
     runs-on: ubuntu-latest

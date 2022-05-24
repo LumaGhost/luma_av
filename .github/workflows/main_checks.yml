@@ -1,0 +1,35 @@
+name: luma_av chron checks (main)
+on:
+  schedule:
+    - cron:  '20 4 * * 6'
+jobs:
+  build_and_test_with_gcc:
+    runs-on: ubuntu-latest
+    container: 
+      image: lumauwu/luma_gcc_ci:latest
+      options: -e CONAN_USER_HOME=/root
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+      - name: conan install (Release)
+        timeout-minutes: 2
+        run: conan install . -if build --build missing -s build_type=Release
+      - name: build and test
+        run: conan build . -bf build
+        
+  clang_tooling:
+    runs-on: ubuntu-latest
+    container: 
+      image: lumauwu/luma_clang_ci:latest
+      options: -e CONAN_USER_HOME=/root
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+      - name: conan install (Release)
+        timeout-minutes: 2
+        run: conan install . -pr:b clang-libcxx -pr:h clang-libcxx -if build --build missing -s build_type=Release
+      - name: build and test
+        run: conan build . -bf build
+      - name: clang-tidy
+        run: python3 /llvm-install/scripts/run-clang-tidy.py -clang-tidy-binary /llvm-install/bin/clang-tidy
+        working-directory: build

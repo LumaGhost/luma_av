@@ -2,6 +2,8 @@
     "InheritParentConfig": true,
     "Checks": "
             -readability-identifier-naming,
-            -readability-named-parameter
+            -readability-named-parameter,
+            -cppcoreguidelines-avoid-magic-numbers,
+            -readability-magic-numbers
             "
 }

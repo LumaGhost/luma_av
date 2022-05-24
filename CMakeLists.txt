@@ -10,8 +10,9 @@ find_package(ffmpeg REQUIRED)
 
 add_subdirectory(src)
 
-enable_testing()
 find_package(GTest REQUIRED)
-
+enable_testing()
+include(GoogleTest)
 add_subdirectory(tests)
+
 add_subdirectory(examples)

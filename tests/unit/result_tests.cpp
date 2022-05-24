@@ -6,7 +6,7 @@
 
 using namespace luma_av;
 
-TEST(result_unit, outcome_example) {
+TEST(result, outcome_example) {
   std::error_code ec = luma_av::errc::success;
 
   std::cout << "printed by std::error_code as " << ec
@@ -23,19 +23,19 @@ TEST(result_unit, outcome_example) {
   ASSERT_EQ(ec.value(), 0);
 }
 
-TEST(result_unit, success) {
+TEST(result, success) {
   auto r = result<void>{luma_av::outcome::success()};
   ASSERT_TRUE(r);
   r.value();
 }
 
-TEST(result_unit, ffmpeg_code) {
+TEST(result, ffmpeg_code) {
   auto r = result<void>{errc{AVERROR_EOF}};
   ASSERT_FALSE(r);
   ASSERT_DEATH(r.value(), "");
 }
 
-TEST(result_unit, ffmpeg_success) {
+TEST(result, ffmpeg_success) {
   auto r = detail::ffmpeg_code_to_result(0);
   ASSERT_TRUE(r);
   r.value();

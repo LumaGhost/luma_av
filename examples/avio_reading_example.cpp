@@ -14,7 +14,7 @@ extern "C" {
 #include <luma_av/parser.hpp>
 #include <luma_av/swscale.hpp>
 
-static auto kFileName = "./test_vids/fortnite_uwu.mp4";
+static const auto kFileName = "./test_vids/fortnite_uwu.mp4";
 
 
 struct BufferData {

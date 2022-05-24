@@ -1,0 +1,18 @@
+name: Self-Care PR Reminders
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  drink_water_reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: reminder to drink water 
+        run: echo "now is a great time for a water break while waiting for the other checks (:"
+  posture_check_reminder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: reminder to stretch and check your posture
+        run: echo "consider taking a break to check your posture and stretch while the other checks finish (:"

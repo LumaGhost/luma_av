@@ -16,7 +16,6 @@ extern "C" {
 
 static const auto kFileName = "./test_vids/fortnite_uwu.mp4";
 
-
 struct BufferData {
     uint8_t *ptr;
     size_t size; ///< size left in the buffer

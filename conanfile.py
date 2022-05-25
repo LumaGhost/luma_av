@@ -35,7 +35,7 @@ class LumaAvConan(ConanFile):
         cmake.definitions["CMAKE_TOOLCHAIN_FILE"] = "conan_toolchain.cmake"
         cmake.configure()
         cmake.build()
-        cmake.test()
+        cmake.test(output_on_failure=True)
 
     def package(self):
         self.copy("*.hpp", dst="include", src="hello")
